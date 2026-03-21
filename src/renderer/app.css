@@ -28,17 +28,50 @@
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 
+.react-grid-item.resizing {
+  z-index: 100;
+}
+
 .react-grid-item > .react-resizable-handle {
   opacity: 0;
   transition: opacity 0.15s;
+  width: 12px;
+  height: 12px;
 }
 
 .react-grid-item:hover > .react-resizable-handle {
-  opacity: 0.6;
+  opacity: 0;
 }
 
 .react-resizable-handle::after {
-  border-color: #52525b !important;
+  display: none;
+}
+
+.react-grid-item > .react-resizable-handle.react-resizable-handle-n,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-s {
+  left: 0;
+  width: 100%;
+  margin-left: 0;
+}
+
+.react-grid-item > .react-resizable-handle.react-resizable-handle-e,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-w {
+  top: 0;
+  height: 100%;
+  margin-top: 0;
+}
+
+.react-grid-item > .react-resizable-handle.react-resizable-handle-s {
+  height: 10px;
+}
+
+.react-grid-item > .react-resizable-handle.react-resizable-handle-e {
+  width: 10px;
+}
+
+.react-grid-item > .react-resizable-handle.react-resizable-handle-se {
+  width: 14px;
+  height: 14px;
 }
 
 /* Scrollbar styling */
@@ -63,6 +96,7 @@
 /* Drag handle cursor */
 .drag-handle {
   cursor: grab;
+  touch-action: none;
 }
 
 .drag-handle:active {

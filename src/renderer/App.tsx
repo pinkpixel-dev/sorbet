@@ -9,23 +9,44 @@ import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import './app.css'
 
+const GRID_COLS = 48
+const GRID_ROW_HEIGHT = 8
+const CARD_DEFAULT_W = 16
+const CARD_DEFAULT_H = 36
+const CARD_MIN_W = 12
+const CARD_MIN_H = 16
+const CARD_MAXIMIZED_H = 90
+
 // Generate a unique session ID
 function generateId(): string {
   return `sess_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
 }
 
 // Calculate a smart position for the new card
-function getNewCardLayout(existingLayout: LayoutItem[], cols: number): LayoutItem {
+function getNewCardLayout(existingLayout: LayoutItem[]): LayoutItem {
   const id = generateId()
   if (existingLayout.length === 0) {
-    return { i: id, x: 0, y: 0, w: Math.floor(cols / 2), h: 8, minW: 3, minH: 4 }
+    return { i: id, x: 0, y: 0, w: CARD_DEFAULT_W, h: CARD_DEFAULT_H, minW: CARD_MIN_W, minH: CARD_MIN_H }
   }
-  // Find the bottom of the current layout
-  const maxY = Math.max(...existingLayout.map((l) => l.y + l.h))
-  return { i: id, x: 0, y: maxY, w: Math.floor(cols / 2), h: 8, minW: 3, minH: 4 }
-}
 
-const COLS = 12
+  const lastItem = existingLayout[existingLayout.length - 1]
+  const nextX = lastItem.x + lastItem.w
+
+  if (nextX + CARD_DEFAULT_W <= GRID_COLS) {
+    return {
+      i: id,
+      x: nextX,
+      y: lastItem.y,
+      w: CARD_DEFAULT_W,
+      h: CARD_DEFAULT_H,
+      minW: CARD_MIN_W,
+      minH: CARD_MIN_H,
+    }
+  }
+
+  const maxY = Math.max(...existingLayout.map((l) => l.y + l.h))
+  return { i: id, x: 0, y: maxY, w: CARD_DEFAULT_W, h: CARD_DEFAULT_H, minW: CARD_MIN_W, minH: CARD_MIN_H }
+}
 
 export default function App() {
   const isMac = window.sorbet.platform === 'darwin'
@@ -58,10 +79,10 @@ export default function App() {
         i: session.id,
         x: 0,
         y: 0,
-        w: COLS,
-        h: 20,
-        minW: COLS,
-        minH: 8,
+        w: GRID_COLS,
+        h: CARD_MAXIMIZED_H,
+        minW: GRID_COLS,
+        minH: CARD_MIN_H,
       }))
     : layout.filter((item) => visibleSessions.some((session) => session.id === item.i))
 
@@ -70,7 +91,7 @@ export default function App() {
   }, [layout])
 
   const spawnTerminal = useCallback(() => {
-    const layoutItem = getNewCardLayout(layoutRef.current, COLS)
+    const layoutItem = getNewCardLayout(layoutRef.current)
     const session: TerminalSession = {
       id: layoutItem.i,
       title: 'Terminal',
@@ -130,8 +151,8 @@ export default function App() {
         y: l.y,
         w: l.w,
         h: l.h,
-        minW: 3,
-        minH: 4,
+        minW: CARD_MIN_W,
+        minH: CARD_MIN_H,
       }))
       updateLayout(updated)
     },
@@ -250,15 +271,15 @@ export default function App() {
           <GridLayout
             className="layout"
             layout={gridLayout}
-            cols={COLS}
-            rowHeight={30}
+            cols={GRID_COLS}
+            rowHeight={GRID_ROW_HEIGHT}
             width={gridWidth}
             margin={[6, 6]}
             containerPadding={[8, 8]}
             onLayoutChange={handleLayoutChange}
             draggableHandle=".drag-handle"
-            draggableCancel=".window-control, .terminal-content, .terminal-dock-item"
-            resizeHandles={['se', 'sw', 'ne', 'nw', 's', 'e']}
+            draggableCancel=".window-action, .title-editor, .terminal-content, .terminal-dock-item"
+            resizeHandles={['e', 's', 'se']}
             isResizable
             isDraggable
           >

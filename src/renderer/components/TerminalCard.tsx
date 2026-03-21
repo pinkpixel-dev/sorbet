@@ -30,6 +30,8 @@ export function TerminalCard({
   const fitAddonRef = useRef<FitAddon | null>(null)
   const cleanupRef = useRef<(() => void)[]>([])
   const isInitialized = useRef(false)
+  const resizeFrameRef = useRef<number | null>(null)
+  const resizeTimeoutRef = useRef<number | null>(null)
 
   const { updateSession, removeSession, sessions } = useSorbetStore()
   const session = sessions.find((item) => item.id === sessionId)
@@ -50,6 +52,22 @@ export function TerminalCard({
       window.sorbet.pty.resize(sessionId, cols, rows)
     } catch {}
   }, [sessionId])
+
+  const scheduleTerminalFit = useCallback(() => {
+    if (resizeFrameRef.current !== null) {
+      window.cancelAnimationFrame(resizeFrameRef.current)
+    }
+    if (resizeTimeoutRef.current !== null) {
+      window.clearTimeout(resizeTimeoutRef.current)
+    }
+
+    resizeFrameRef.current = window.requestAnimationFrame(() => {
+      fitTerminal()
+      resizeTimeoutRef.current = window.setTimeout(() => {
+        fitTerminal()
+      }, 40)
+    })
+  }, [fitTerminal])
 
   const focusTerminal = useCallback(() => {
     onActivate()
@@ -151,6 +169,14 @@ export function TerminalCard({
       removeExitListener,
       () => dataDisposable.dispose(),
       () => titleDisposable.dispose(),
+      () => {
+        if (resizeFrameRef.current !== null) {
+          window.cancelAnimationFrame(resizeFrameRef.current)
+        }
+        if (resizeTimeoutRef.current !== null) {
+          window.clearTimeout(resizeTimeoutRef.current)
+        }
+      },
       () => term.dispose(),
     ]
 
@@ -192,11 +218,11 @@ export function TerminalCard({
   useEffect(() => {
     if (!containerRef.current) return
     const observer = new ResizeObserver(() => {
-      requestAnimationFrame(fitTerminal)
+      scheduleTerminalFit()
     })
     observer.observe(containerRef.current)
     return () => observer.disconnect()
-  }, [fitTerminal])
+  }, [scheduleTerminalFit])
 
   // Focus terminal when activated
   useEffect(() => {
@@ -242,9 +268,15 @@ export function TerminalCard({
     })
   }
 
+  const handleStartTitleEditing = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setDraftTitle(displayTitle)
+    setIsEditingTitle(true)
+  }
+
   return (
     <div
-      className="flex flex-col w-full h-full rounded-xl overflow-hidden"
+      className="group flex flex-col w-full h-full rounded-xl overflow-hidden"
       style={{
         border: `1px solid ${isActive ? theme.accent + '66' : '#27272a'}`,
         background: theme.background,
@@ -265,23 +297,23 @@ export function TerminalCard({
         }}
       >
         {/* Traffic light dots */}
-        <div className="window-control flex items-center gap-2 justify-start">
+        <div className="flex items-center gap-2 justify-start">
           <button
-            className="w-3 h-3 rounded-full flex-shrink-0 transition-opacity hover:opacity-70"
+            className="window-action w-3 h-3 rounded-full flex-shrink-0 transition-opacity hover:opacity-70"
             style={{ background: '#f87171' }}
             onClick={handleClose}
             onMouseDown={(e) => e.stopPropagation()}
             title="Close"
           />
           <button
-            className="w-3 h-3 rounded-full flex-shrink-0 transition-opacity hover:opacity-70"
+            className="window-action w-3 h-3 rounded-full flex-shrink-0 transition-opacity hover:opacity-70"
             style={{ background: '#fbbf24' }}
             onClick={handleMinimize}
             onMouseDown={(e) => e.stopPropagation()}
             title="Minimize"
           />
           <button
-            className="w-3 h-3 rounded-full flex-shrink-0 transition-opacity hover:opacity-70"
+            className="window-action w-3 h-3 rounded-full flex-shrink-0 transition-opacity hover:opacity-70"
             style={{ background: '#4ade80' }}
             onClick={handleMaximize}
             onMouseDown={(e) => e.stopPropagation()}
@@ -290,10 +322,10 @@ export function TerminalCard({
         </div>
 
         {/* Session title */}
-        <div className="window-control flex items-center justify-center min-w-0">
+        <div className="flex items-center justify-center min-w-0">
           {isEditingTitle ? (
             <input
-              className="pointer-events-auto w-full max-w-[220px] px-2 py-0.5 rounded text-xs text-center outline-none"
+              className="title-editor pointer-events-auto w-full max-w-[220px] px-2 py-0.5 rounded text-xs text-center outline-none"
               style={{
                 background: '#18181b',
                 border: `1px solid ${theme.accent}55`,
@@ -317,29 +349,51 @@ export function TerminalCard({
               autoFocus
             />
           ) : (
-            <button
-              className="pointer-events-auto max-w-[220px] truncate px-2 text-xs font-medium text-center"
+            <div
+              className="max-w-[220px] truncate px-2 text-xs font-medium text-center"
               style={{ color: isActive ? theme.foreground : '#52525b' }}
-              onClick={(e) => {
-                e.stopPropagation()
-                setDraftTitle(displayTitle)
-                setIsEditingTitle(true)
-              }}
               onDoubleClick={(e) => {
                 e.stopPropagation()
                 setDraftTitle(displayTitle)
                 setIsEditingTitle(true)
               }}
-              onMouseDown={(e) => e.stopPropagation()}
-              title="Rename terminal"
+              title="Double-click to rename terminal"
             >
               {displayTitle}
-            </button>
+            </div>
           )}
         </div>
 
         {/* Active indicator */}
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-end gap-2">
+          {!isEditingTitle && (
+            <button
+              className="window-action title-edit-trigger flex items-center justify-center w-5 h-5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{
+                color: isActive ? theme.foreground : '#71717a',
+                background: isActive ? '#18181b' : 'transparent',
+              }}
+              onClick={handleStartTitleEditing}
+              onMouseDown={(e) => e.stopPropagation()}
+              title="Rename terminal"
+            >
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path
+                  d="M10.9 2.3a1.5 1.5 0 0 1 2.1 0l.7.7a1.5 1.5 0 0 1 0 2.1l-7.2 7.2L3.5 13l.7-2.9 6.7-6.8Z"
+                  stroke="currentColor"
+                  strokeWidth="1.25"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M9.8 3.4 12.6 6.2"
+                  stroke="currentColor"
+                  strokeWidth="1.25"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          )}
           {isActive && (
             <div
               className="w-1.5 h-1.5 rounded-full flex-shrink-0"
