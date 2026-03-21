@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* xterm.js canvas overrides */
+.xterm {
+  height: 100%;
+  padding: 0;
+}
+
+.xterm-viewport {
+  border-radius: 0 0 10px 10px;
+  overflow-y: auto !important;
+}
+
+.xterm-screen {
+  border-radius: 0 0 10px 10px;
+}
+
+/* react-grid-layout overrides */
+.react-grid-item {
+  position: relative;
+}
+
+.react-grid-item.react-draggable-dragging {
+  opacity: 0.85;
+  z-index: 100;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.react-grid-item > .react-resizable-handle {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.react-grid-item:hover > .react-resizable-handle {
+  opacity: 0.6;
+}
+
+.react-resizable-handle::after {
+  border-color: #52525b !important;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
+/* Drag handle cursor */
+.drag-handle {
+  cursor: grab;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Placeholder while dragging */
+.react-grid-placeholder {
+  background: #22d3ee11 !important;
+  border: 1px dashed #22d3ee44 !important;
+  border-radius: 12px !important;
+  opacity: 1 !important;
+}
