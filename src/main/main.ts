@@ -1,10 +1,11 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, MenuItemConstructorOptions, shell } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as pty from 'node-pty'
 import Store from 'electron-store'
 
 const isDev = process.env.NODE_ENV !== 'production'
+const githubRepoUrl = 'https://github.com/pinkpixel-dev/sorbet'
 
 if (process.platform === 'linux') {
   app.disableHardwareAcceleration()
@@ -55,6 +56,118 @@ function resolveShell(): { command: string; args: string[] } {
 
 // ─── Window ───────────────────────────────────────────────────────────────────
 let mainWindow: BrowserWindow | null = null
+
+function openExternalUrl(url: string) {
+  void shell.openExternal(url)
+}
+
+function buildAppMenu() {
+  const isMac = process.platform === 'darwin'
+  const appSubmenu: MenuItemConstructorOptions[] = [
+    { role: 'about' },
+    { type: 'separator' },
+    { role: 'services' },
+    { type: 'separator' },
+    { role: 'hide' },
+    { role: 'hideOthers' },
+    { role: 'unhide' },
+    { type: 'separator' },
+    { role: 'quit' },
+  ]
+  const fileSubmenu: MenuItemConstructorOptions[] = [
+    { role: 'close' },
+  ]
+  const editSubmenu: MenuItemConstructorOptions[] = isMac
+    ? [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'pasteAndMatchStyle' },
+        { role: 'delete' },
+        { role: 'selectAll' },
+      ]
+    : [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'delete' },
+        { type: 'separator' },
+        { role: 'selectAll' },
+      ]
+  const viewSubmenu: MenuItemConstructorOptions[] = [
+    { role: 'reload' },
+    { role: 'forceReload' },
+    { role: 'toggleDevTools' },
+    { type: 'separator' },
+    { role: 'resetZoom' },
+    { role: 'zoomIn' },
+    { role: 'zoomOut' },
+    { type: 'separator' },
+    { role: 'togglefullscreen' },
+  ]
+  const windowSubmenu: MenuItemConstructorOptions[] = isMac
+    ? [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { type: 'separator' },
+        { role: 'front' },
+      ]
+    : [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { role: 'close' },
+      ]
+  const helpSubmenu: MenuItemConstructorOptions[] = [
+    {
+      label: 'Sorbet on GitHub',
+      click: () => openExternalUrl(githubRepoUrl),
+    },
+    {
+      label: 'Report an Issue',
+      click: () => openExternalUrl(`${githubRepoUrl}/issues/new`),
+    },
+    {
+      label: 'Project README',
+      click: () => openExternalUrl(`${githubRepoUrl}#readme`),
+    },
+  ]
+  const template: MenuItemConstructorOptions[] = [
+    ...(isMac
+      ? [{
+          label: app.name,
+          submenu: appSubmenu,
+        }]
+      : []),
+    {
+      label: 'File',
+      submenu: fileSubmenu,
+    },
+    {
+      label: 'Edit',
+      submenu: editSubmenu,
+    },
+    {
+      label: 'View',
+      submenu: viewSubmenu,
+    },
+    {
+      label: 'Window',
+      submenu: windowSubmenu,
+    },
+    {
+      role: 'help',
+      submenu: helpSubmenu,
+    },
+  ]
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -192,6 +305,7 @@ ipcMain.handle('store:saveTheme', (_event, theme: string) => {
 
 // ─── App Lifecycle ────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
+  buildAppMenu()
   createWindow()
 
   app.on('activate', () => {

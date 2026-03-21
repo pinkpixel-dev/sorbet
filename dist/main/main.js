@@ -42,6 +42,7 @@ const fs = __importStar(require("fs"));
 const pty = __importStar(require("node-pty"));
 const electron_store_1 = __importDefault(require("electron-store"));
 const isDev = process.env.NODE_ENV !== 'production';
+const githubRepoUrl = 'https://github.com/pinkpixel-dev/sorbet';
 if (process.platform === 'linux') {
     electron_1.app.disableHardwareAcceleration();
     electron_1.app.commandLine.appendSwitch('disable-gpu');
@@ -76,6 +77,115 @@ function resolveShell() {
 }
 // ─── Window ───────────────────────────────────────────────────────────────────
 let mainWindow = null;
+function openExternalUrl(url) {
+    void electron_1.shell.openExternal(url);
+}
+function buildAppMenu() {
+    const isMac = process.platform === 'darwin';
+    const appSubmenu = [
+        { role: 'about' },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' },
+    ];
+    const fileSubmenu = [
+        { role: 'close' },
+    ];
+    const editSubmenu = isMac
+        ? [
+            { role: 'undo' },
+            { role: 'redo' },
+            { type: 'separator' },
+            { role: 'cut' },
+            { role: 'copy' },
+            { role: 'paste' },
+            { role: 'pasteAndMatchStyle' },
+            { role: 'delete' },
+            { role: 'selectAll' },
+        ]
+        : [
+            { role: 'undo' },
+            { role: 'redo' },
+            { type: 'separator' },
+            { role: 'cut' },
+            { role: 'copy' },
+            { role: 'paste' },
+            { role: 'delete' },
+            { type: 'separator' },
+            { role: 'selectAll' },
+        ];
+    const viewSubmenu = [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+    ];
+    const windowSubmenu = isMac
+        ? [
+            { role: 'minimize' },
+            { role: 'zoom' },
+            { type: 'separator' },
+            { role: 'front' },
+        ]
+        : [
+            { role: 'minimize' },
+            { role: 'zoom' },
+            { role: 'close' },
+        ];
+    const helpSubmenu = [
+        {
+            label: 'Sorbet on GitHub',
+            click: () => openExternalUrl(githubRepoUrl),
+        },
+        {
+            label: 'Report an Issue',
+            click: () => openExternalUrl(`${githubRepoUrl}/issues/new`),
+        },
+        {
+            label: 'Project README',
+            click: () => openExternalUrl(`${githubRepoUrl}#readme`),
+        },
+    ];
+    const template = [
+        ...(isMac
+            ? [{
+                    label: electron_1.app.name,
+                    submenu: appSubmenu,
+                }]
+            : []),
+        {
+            label: 'File',
+            submenu: fileSubmenu,
+        },
+        {
+            label: 'Edit',
+            submenu: editSubmenu,
+        },
+        {
+            label: 'View',
+            submenu: viewSubmenu,
+        },
+        {
+            label: 'Window',
+            submenu: windowSubmenu,
+        },
+        {
+            role: 'help',
+            submenu: helpSubmenu,
+        },
+    ];
+    electron_1.Menu.setApplicationMenu(electron_1.Menu.buildFromTemplate(template));
+}
 function createWindow() {
     mainWindow = new electron_1.BrowserWindow({
         width: 1400,
@@ -208,6 +318,7 @@ electron_1.ipcMain.handle('store:saveTheme', (_event, theme) => {
 });
 // ─── App Lifecycle ────────────────────────────────────────────────────────────
 electron_1.app.whenReady().then(() => {
+    buildAppMenu();
     createWindow();
     electron_1.app.on('activate', () => {
         if (electron_1.BrowserWindow.getAllWindows().length === 0)
