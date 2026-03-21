@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { LayoutItem, TerminalSession } from '../types'
 
-interface MosaicStore {
+interface SorbetStore {
   // Sessions
   sessions: TerminalSession[]
   activeSessionId: string | null
@@ -25,7 +25,7 @@ interface MosaicStore {
   toggleMaximizeSession: (id: string) => void
 }
 
-export const useMosaicStore = create<MosaicStore>((set) => ({
+export const useSorbetStore = create<SorbetStore>((set) => ({
   sessions: [],
   activeSessionId: null,
   maximizedSessionId: null,

@@ -3,7 +3,7 @@ import { Theme } from '../types'
 export const themes: Record<string, Theme> = {
   dark: {
     id: 'dark',
-    name: 'Mosaic Dark',
+    name: 'Sorbet Dark',
     background: '#0d0d0f',
     foreground: '#e4e4e7',
     cursor: '#22d3ee',

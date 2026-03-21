@@ -3,7 +3,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Theme } from '../types'
-import { useMosaicStore } from '../store'
+import { useSorbetStore } from '../store'
 import '@xterm/xterm/css/xterm.css'
 
 interface TerminalCardProps {
@@ -31,7 +31,7 @@ export function TerminalCard({
   const cleanupRef = useRef<(() => void)[]>([])
   const isInitialized = useRef(false)
 
-  const { updateSession, removeSession, sessions } = useMosaicStore()
+  const { updateSession, removeSession, sessions } = useSorbetStore()
   const session = sessions.find((item) => item.id === sessionId)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
@@ -47,7 +47,7 @@ export function TerminalCard({
     try {
       fitAddonRef.current.fit()
       const { cols, rows } = terminalRef.current
-      window.mosaic.pty.resize(sessionId, cols, rows)
+      window.sorbet.pty.resize(sessionId, cols, rows)
     } catch {}
   }, [sessionId])
 
@@ -116,7 +116,7 @@ export function TerminalCard({
       const { cols, rows } = term
 
       // Spawn PTY
-      window.mosaic.pty.create(sessionId, cols, rows).then((result) => {
+      window.sorbet.pty.create(sessionId, cols, rows).then((result) => {
         if (result.success) {
           updateSession(sessionId, { pid: result.pid, isAlive: true })
         } else {
@@ -126,19 +126,19 @@ export function TerminalCard({
     })
 
     // Wire PTY output → xterm
-    const removeDataListener = window.mosaic.pty.onData(sessionId, (data) => {
+    const removeDataListener = window.sorbet.pty.onData(sessionId, (data) => {
       term.write(data)
     })
 
     // Wire PTY exit
-    const removeExitListener = window.mosaic.pty.onExit(sessionId, () => {
+    const removeExitListener = window.sorbet.pty.onExit(sessionId, () => {
       updateSession(sessionId, { isAlive: false })
       term.write('\r\n\x1b[90m[Process exited]\x1b[0m\r\n')
     })
 
     // Wire xterm input → PTY
     const dataDisposable = term.onData((data) => {
-      window.mosaic.pty.write(sessionId, data)
+      window.sorbet.pty.write(sessionId, data)
     })
 
     // Handle title changes (shell sets window title via escape codes)
@@ -156,7 +156,7 @@ export function TerminalCard({
 
     return () => {
       cleanupRef.current.forEach((fn) => fn())
-      window.mosaic.pty.kill(sessionId)
+      window.sorbet.pty.kill(sessionId)
     }
   }, [focusTerminalDom, sessionId, theme, updateSession])
 
@@ -215,7 +215,7 @@ export function TerminalCard({
 
   const handleClose = (e: React.MouseEvent) => {
     e.stopPropagation()
-    window.mosaic.pty.kill(sessionId)
+    window.sorbet.pty.kill(sessionId)
     removeSession(sessionId)
   }
 

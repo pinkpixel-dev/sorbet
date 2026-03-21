@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document is intended to help developers understand how `mosaic-term` is structured, how the runtime pieces communicate, and where to make changes when extending the project.
+This document is intended to help developers understand how `Sorbet` is structured, how the runtime pieces communicate, and where to make changes when extending the project.
 
 The application is a desktop terminal workspace built on Electron. It combines:
 
@@ -26,7 +26,7 @@ The runtime is composed of four major layers:
 
 1. Electron launches and creates the main window.
 2. The renderer loads either from the Vite dev server or the built renderer bundle.
-3. The renderer calls `window.mosaic.store.getTheme()` and `window.mosaic.store.getLayout()` during startup.
+3. The renderer calls `window.sorbet.store.getTheme()` and `window.sorbet.store.getLayout()` during startup.
 4. If a saved layout exists, the Zustand store reconstructs the workspace from it.
 5. If no layout exists, the renderer creates one initial terminal session.
 6. Each `TerminalCard` mounts xterm.js and asks the main process to spawn a PTY.
@@ -48,7 +48,7 @@ This directory contains the Electron main process and preload bridge.
   - forwards PTY output and exit events to the renderer
   - persists layout and theme state via `electron-store`
 - `preload.ts`
-  - defines the safe API exposed to the renderer as `window.mosaic`
+  - defines the safe API exposed to the renderer as `window.sorbet`
   - wraps all PTY and store IPC calls
 
 ### `src/renderer`
@@ -75,7 +75,7 @@ This directory contains the UI and renderer-side app state.
 - `themes/index.ts`
   - theme catalog
 - `types/index.ts`
-  - renderer-side shared types and `window.mosaic` typing
+  - renderer-side shared types and `window.sorbet` typing
 
 ### Supporting files
 
@@ -130,7 +130,7 @@ On process exit, the session is removed from the map and an exit event is pushed
 
 The shell selection logic prefers:
 
-1. `MOSAIC_SHELL`
+1. `SORBET_SHELL`
 2. common Bash/Zsh paths
 3. `process.env.SHELL`
 4. `/bin/sh`
@@ -150,18 +150,18 @@ These are written with `electron-store` in the main process and consumed by the 
 
 ## Preload Bridge Design
 
-The preload script exposes a small API under `window.mosaic`.
+The preload script exposes a small API under `window.sorbet`.
 
 ### Exposed namespaces
 
-- `window.mosaic.pty`
+- `window.sorbet.pty`
   - `create(sessionId, cols, rows)`
   - `write(sessionId, data)`
   - `resize(sessionId, cols, rows)`
   - `kill(sessionId)`
   - `onData(sessionId, callback)`
   - `onExit(sessionId, callback)`
-- `window.mosaic.store`
+- `window.sorbet.store`
   - `getLayout()`
   - `saveLayout(layout)`
   - `getTheme()`
@@ -327,7 +327,7 @@ If you are changing preload APIs or main-process IPC contracts, restart Electron
 
 1. Add IPC handlers in `src/main/main.ts`.
 2. Expose the new methods in `src/main/preload.ts`.
-3. Extend the `MosaicAPI` type in `src/renderer/types/index.ts`.
+3. Extend the `SorbetAPI` type in `src/renderer/types/index.ts`.
 4. Consume the new methods from React or Zustand.
 
 ### Add terminal controls
@@ -350,7 +350,7 @@ Check:
 
 - native `node-pty` build status
 - local shell availability
-- whether `MOSAIC_SHELL` points to a valid executable
+- whether `SORBET_SHELL` points to a valid executable
 
 If needed:
 
@@ -364,7 +364,7 @@ The resize path depends on:
 
 - `ResizeObserver` in `TerminalCard`
 - xterm.js `FitAddon`
-- `window.mosaic.pty.resize(...)`
+- `window.sorbet.pty.resize(...)`
 
 If layout changes but terminal rows/columns do not update, inspect that flow first.
 

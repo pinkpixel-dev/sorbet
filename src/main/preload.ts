@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
-// Expose a safe, typed API to the renderer via window.mosaic
-contextBridge.exposeInMainWorld('mosaic', {
+// Expose a safe, typed API to the renderer via window.sorbet
+contextBridge.exposeInMainWorld('sorbet', {
   platform: process.platform,
 
   // PTY operations

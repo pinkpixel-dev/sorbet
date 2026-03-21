@@ -30,7 +30,7 @@ function resolveShell(): { command: string; args: string[] } {
   }
 
   const candidates = [
-    process.env.MOSAIC_SHELL,
+    process.env.SORBET_SHELL,
     '/usr/bin/bash',
     '/bin/bash',
     '/usr/bin/zsh',

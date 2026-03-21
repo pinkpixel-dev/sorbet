@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import GridLayout, { Layout } from 'react-grid-layout'
 import { TerminalCard } from './components/TerminalCard'
 import { ThemePicker } from './components/ThemePicker'
-import { useMosaicStore } from './store'
+import { useSorbetStore } from './store'
 import { themes } from './themes'
 import { LayoutItem, TerminalSession } from './types'
 import 'react-grid-layout/css/styles.css'
@@ -28,7 +28,7 @@ function getNewCardLayout(existingLayout: LayoutItem[], cols: number): LayoutIte
 const COLS = 12
 
 export default function App() {
-  const isMac = window.mosaic.platform === 'darwin'
+  const isMac = window.sorbet.platform === 'darwin'
   const layoutRef = useRef<LayoutItem[]>([])
   const hasRestoredWorkspace = useRef(false)
   const [gridWidth, setGridWidth] = useState(window.innerWidth)
@@ -45,7 +45,7 @@ export default function App() {
     restoreWorkspace,
     toggleMinimizeSession,
     toggleMaximizeSession,
-  } = useMosaicStore()
+  } = useSorbetStore()
 
   const theme = themes[themeId] || themes.dark
   const visibleSessions = sessions.filter((session) => !session.isMinimized)
@@ -88,11 +88,11 @@ export default function App() {
 
     let cancelled = false
 
-    window.mosaic.store.getTheme().then((savedTheme) => {
+    window.sorbet.store.getTheme().then((savedTheme) => {
       if (!cancelled && savedTheme) setTheme(savedTheme)
     })
 
-    window.mosaic.store.getLayout().then((savedLayout) => {
+    window.sorbet.store.getLayout().then((savedLayout) => {
       if (cancelled) return
 
       if (savedLayout && savedLayout.length > 0) {
@@ -117,7 +117,7 @@ export default function App() {
   // Auto-save layout whenever it changes
   useEffect(() => {
     if (layout.length > 0) {
-      window.mosaic.store.saveLayout(layout)
+      window.sorbet.store.saveLayout(layout)
     }
   }, [layout])
 
@@ -141,7 +141,7 @@ export default function App() {
   const handleThemeChange = useCallback(
     (newThemeId: string) => {
       setTheme(newThemeId)
-      window.mosaic.store.saveTheme(newThemeId)
+      window.sorbet.store.saveTheme(newThemeId)
     },
     [setTheme]
   )
@@ -177,7 +177,7 @@ export default function App() {
       >
         {/* App name */}
         <span className="text-xs font-semibold" style={{ color: theme.accent }}>
-          mosaic
+          sorbet
         </span>
 
         <div

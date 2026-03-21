@@ -4,12 +4,12 @@
 
 ### Initial scaffold
 
-- Scaffolded `mosaic-term` as an Electron + Vite + React + TypeScript desktop app.
+- Scaffolded `Sorbet` as an Electron + Vite + React + TypeScript desktop app.
 - Set up a renderer built around `react-grid-layout` for draggable and resizable terminal cards.
 - Added xterm.js terminal rendering with `@xterm/addon-fit` and `@xterm/addon-web-links`.
 - Added PTY-backed shell sessions through `node-pty` in the Electron main process.
 - Added persisted app settings with `electron-store`.
-- Added built-in theme support with Mosaic Dark, Dracula, Nord, Tokyo Night, Catppuccin Mocha, and Gruvbox Dark.
+- Added built-in theme support with Sorbet Dark, Dracula, Nord, Tokyo Night, Catppuccin Mocha, and Gruvbox Dark.
 - Added keyboard shortcut support for creating a new terminal with `Cmd/Ctrl+T`.
 - Added initial app shell, toolbar, theme picker, terminal card component, and basic layout persistence.
 
@@ -24,7 +24,7 @@
 ### Renderer stability fixes
 
 - Fixed a renderer crash caused by using `process.platform` directly in the browser bundle.
-- Exposed the current platform safely through the preload bridge as `window.mosaic.platform`.
+- Exposed the current platform safely through the preload bridge as `window.sorbet.platform`.
 - Fixed a hook-order crash where `spawnTerminal` was referenced before initialization.
 - Removed `React.StrictMode` from the renderer entry during development because it was double-invoking terminal lifecycle effects and interfering with PTY-backed terminal initialization.
 

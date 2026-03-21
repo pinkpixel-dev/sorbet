@@ -1,6 +1,6 @@
-# mosaic-term
+# Sorbet
 
-`mosaic-term` is a desktop terminal workspace built with Electron, React, and xterm.js. Instead of a single terminal pane or fixed tab strip, it gives you a canvas of movable terminal cards that can be opened, resized, minimized, restored, and themed to fit the way you work.
+`Sorbet` is a desktop terminal workspace built with Electron, React, and xterm.js. Instead of a single terminal pane or fixed tab strip, it gives you a canvas of movable terminal cards that can be opened, resized, minimized, restored, and themed to fit the way you work.
 
 The project is designed around a simple idea: keep the flexibility of a tiling terminal UI while preserving the compatibility of a real PTY-backed shell. Each card runs an actual shell process through `node-pty`, so interactive tools like `vim`, `htop`, `btop`, `ssh`, and REPLs behave like you would expect in a native terminal.
 
@@ -32,7 +32,7 @@ The project is designed around a simple idea: keep the flexibility of a tiling t
 At a high level, the application is split into three parts:
 
 1. The Electron main process creates the native window, spawns PTY-backed shell sessions, handles IPC, and persists workspace settings.
-2. The preload script exposes a small, typed API on `window.mosaic` so the renderer can safely request PTY and storage operations.
+2. The preload script exposes a small, typed API on `window.sorbet` so the renderer can safely request PTY and storage operations.
 3. The React renderer manages the terminal workspace, card layout, theme selection, and terminal card lifecycle.
 
 When a new card is created, the renderer computes a layout position, adds a session to the Zustand store, and mounts a `TerminalCard`. That card initializes xterm.js, asks the main process to create a PTY, then wires terminal input/output over IPC. Layout and theme changes are saved through `electron-store`, allowing the workspace to be restored on the next launch.
@@ -62,7 +62,7 @@ When a new card is created, the renderer computes a layout position, adds a sess
 - Layout is saved automatically whenever it changes
 - Theme selection is saved and restored on startup
 - Six built-in themes:
-  - Mosaic Dark
+  - Sorbet Dark
   - Dracula
   - Nord
   - Tokyo Night
@@ -148,7 +148,7 @@ Note: there is currently no dedicated `package` script in `package.json`, so pac
 
 The main process resolves a shell using this order:
 
-1. `MOSAIC_SHELL`
+1. `SORBET_SHELL`
 2. common system shell paths such as Bash or Zsh
 3. the current `SHELL` environment variable
 4. `/bin/sh` as a fallback
@@ -168,18 +168,18 @@ On startup, the renderer requests both values through the preload API. If no lay
 
 ## Keyboard Shortcut
 
-| Shortcut | Action |
-| --- | --- |
+| Shortcut     | Action                      |
+| ------------ | --------------------------- |
 | `Cmd/Ctrl+T` | Open a new terminal session |
 
 ## Project Structure
 
 ```text
-mosaic-term/
+sorbet/
 ├── src/
 │   ├── main/
 │   │   ├── main.ts              # Electron app lifecycle, PTY creation, persistence, IPC
-│   │   └── preload.ts           # Safe renderer bridge exposed as window.mosaic
+│   │   └── preload.ts           # Safe renderer bridge exposed as window.sorbet
 │   └── renderer/
 │       ├── components/
 │       │   ├── TerminalCard.tsx # xterm.js setup, PTY wiring, card controls
@@ -220,7 +220,7 @@ All live PTY sessions are stored in an in-memory `Map`, keyed by session ID. Whe
 
 ### Preload bridge
 
-The preload script exposes two top-level groups on `window.mosaic`:
+The preload script exposes two top-level groups on `window.sorbet`:
 
 - `pty` for session creation, input, resize, termination, and event subscriptions
 - `store` for loading and saving layout/theme state

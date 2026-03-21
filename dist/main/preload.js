@@ -1,8 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
-// Expose a safe, typed API to the renderer via window.mosaic
-electron_1.contextBridge.exposeInMainWorld('mosaic', {
+// Expose a safe, typed API to the renderer via window.sorbet
+electron_1.contextBridge.exposeInMainWorld('sorbet', {
     platform: process.platform,
     // PTY operations
     pty: {

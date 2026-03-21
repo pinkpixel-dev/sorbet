@@ -1,5 +1,5 @@
 {
-  "name": "mosaic-term",
+  "name": "Sorbet",
   "version": "0.1.0",
   "description": "Tiling terminal emulator with resizable card layout",
   "main": "dist/main/main.js",

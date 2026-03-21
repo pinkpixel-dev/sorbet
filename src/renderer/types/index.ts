@@ -1,11 +1,11 @@
 // Window augmentation for the IPC bridge
 declare global {
   interface Window {
-    mosaic: MosaicAPI
+    sorbet: SorbetAPI
   }
 }
 
-export interface MosaicAPI {
+export interface SorbetAPI {
   platform: NodeJS.Platform
   pty: {
     create: (sessionId: string, cols: number, rows: number) => Promise<{ success: boolean; pid?: number; error?: string }>

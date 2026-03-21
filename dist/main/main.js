@@ -56,7 +56,7 @@ function resolveShell() {
         return { command: 'powershell.exe', args: [] };
     }
     const candidates = [
-        process.env.MOSAIC_SHELL,
+        process.env.SORBET_SHELL,
         '/usr/bin/bash',
         '/bin/bash',
         '/usr/bin/zsh',
