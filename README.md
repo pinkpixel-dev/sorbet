@@ -6,6 +6,8 @@
 
 `Sorbet` is a desktop terminal workspace built with Electron, React, and xterm.js. Instead of a single terminal pane or fixed tab strip, it gives you a canvas of movable terminal cards that can be opened, resized, minimized, restored, themed, and tuned to fit the way you work.
 
+It is especially useful for running multiple CLI agents side by side in one tiling workspace. Tools like Claude Code CLI, OpenAI Codex CLI, GitHub Copilot CLI, Amazon Kiro CLI, Google Gemini CLI, OpenCode, and similar agent-driven terminal tools become much more powerful when you can keep several sessions visible at once for coding, research, debugging, review, or general help with tasks on your computer.
+
 Version `1.0.0` is the first stable Sorbet release. It brings the project from prototype territory into a practical daily-driver desktop terminal with PTY-backed sessions, persistent workspace state, bundled and custom themes, user-editable preferences, and Linux release packaging.
 
 ## Highlights
@@ -23,6 +25,13 @@ Version `1.0.0` is the first stable Sorbet release. It brings the project from p
 - Secure preload bridge with context isolation enabled
 - Linux release packaging for `AppImage`, `deb`, and `rpm`
 - Windows installer build automation through GitHub Actions
+
+## Project Docs
+
+- `README.md` for product overview, installation, and development
+- `OVERVIEW.md` for architecture and implementation details
+- `CHANGELOG.md` for release history
+- `ROADMAP.md` for planned product direction and future features
 
 ## Tech Stack
 
