@@ -115,12 +115,36 @@ npm rebuild node-pty
 npm install
 ```
 
+To install Sorbet globally from npm and launch it from anywhere:
+
+```bash
+npm i -g @pinkpixel/sorbet
+```
+
+Then run:
+
+```bash
+sorbet
+```
+
 ## Development
 
 Start the full development environment with:
 
 ```bash
 npm start
+```
+
+You can also launch the same flow with the project launcher:
+
+```bash
+./sorbet
+```
+
+If you want the local checkout exposed on your `PATH` during development, run:
+
+```bash
+npm link
 ```
 
 This launches:

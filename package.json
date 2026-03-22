@@ -1,8 +1,24 @@
 {
-  "name": "Sorbet",
-  "version": "0.1.0",
+  "name": "@pinkpixel/sorbet",
+  "version": "1.0.0",
   "description": "Tiling terminal emulator with resizable card layout",
+  "authors": [
+    {
+      "name": "PinkPixel",
+      "email": "admin@pinkpixel.dev",
+      "url": "https://pinkpixel.dev"
+    }
+  ],
+  "licenses": [
+    {
+      "type": "Apache-2.0",
+      "url": "http://www.apache.org/licenses/LICENSE-2.0"
+    }
+  ],
   "main": "dist/main/main.js",
+  "bin": {
+    "sorbet": "./sorbet"
+  },
   "scripts": {
     "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:main\"",
     "dev:renderer": "vite",
