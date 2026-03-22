@@ -1,8 +1,14 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { clipboard, contextBridge, ipcRenderer } from 'electron'
 
 // Expose a safe, typed API to the renderer via window.sorbet
 contextBridge.exposeInMainWorld('sorbet', {
   platform: process.platform,
+  clipboard: {
+    readText: async () => clipboard.readText(),
+    writeText: async (text: string) => {
+      clipboard.writeText(text)
+    },
+  },
 
   // PTY operations
   pty: {

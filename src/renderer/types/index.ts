@@ -7,6 +7,10 @@ declare global {
 
 export interface SorbetAPI {
   platform: NodeJS.Platform
+  clipboard: {
+    readText: () => Promise<string>
+    writeText: (text: string) => Promise<void>
+  }
   pty: {
     create: (sessionId: string, cols: number, rows: number) => Promise<{ success: boolean; pid?: number; error?: string }>
     write: (sessionId: string, data: string) => void
@@ -84,4 +88,6 @@ export interface TerminalPreferences {
   lineHeight: number
   letterSpacing: number
   scrollback: number
+  enableClipboardShortcuts: boolean
+  rightClickPaste: boolean
 }

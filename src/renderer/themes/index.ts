@@ -198,6 +198,8 @@ export const defaultTerminalPreferences: TerminalPreferences = {
   lineHeight: 1.2,
   letterSpacing: 0,
   scrollback: 5000,
+  enableClipboardShortcuts: true,
+  rightClickPaste: true,
 }
 
 export function mergeThemes(customThemes: Theme[]): Theme[] {

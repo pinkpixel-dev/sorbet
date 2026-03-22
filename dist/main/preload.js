@@ -4,6 +4,12 @@ const electron_1 = require("electron");
 // Expose a safe, typed API to the renderer via window.sorbet
 electron_1.contextBridge.exposeInMainWorld('sorbet', {
     platform: process.platform,
+    clipboard: {
+        readText: async () => electron_1.clipboard.readText(),
+        writeText: async (text) => {
+            electron_1.clipboard.writeText(text);
+        },
+    },
     // PTY operations
     pty: {
         create: (sessionId, cols, rows) => electron_1.ipcRenderer.invoke('pty:create', sessionId, cols, rows),

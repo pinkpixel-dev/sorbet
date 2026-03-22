@@ -14,8 +14,10 @@ const defaultPreferences = {
   lineHeight: 1.2,
   letterSpacing: 0,
   scrollback: 5000,
+  enableClipboardShortcuts: true,
+  rightClickPaste: true,
 }
-const preferencesTemplateVersion = 1
+const preferencesTemplateVersion = 2
 const themeTemplate = {
   id: 'custom-neon',
   name: 'Custom Neon',
@@ -144,6 +146,8 @@ function createPreferencesTemplate(overrides: Partial<typeof defaultPreferences>
         lineHeight: 'Line height multiplier. 1.0 to 1.3 is usually a good range.',
         letterSpacing: 'Extra spacing between characters. 0 is normal.',
         scrollback: 'Number of lines kept in scrollback history.',
+        enableClipboardShortcuts: 'When true, Cmd/Ctrl+Shift+C copies the current selection and Cmd/Ctrl+Shift+V pastes clipboard contents into the terminal.',
+        rightClickPaste: 'When true, right-clicking inside the terminal pastes plain text from the clipboard.',
       },
     },
     ...defaultPreferences,
@@ -174,6 +178,8 @@ function ensurePreferencesTemplateShape() {
         lineHeight: typeof raw.lineHeight === 'number' ? raw.lineHeight : defaultPreferences.lineHeight,
         letterSpacing: typeof raw.letterSpacing === 'number' ? raw.letterSpacing : defaultPreferences.letterSpacing,
         scrollback: typeof raw.scrollback === 'number' ? raw.scrollback : defaultPreferences.scrollback,
+        enableClipboardShortcuts: typeof raw.enableClipboardShortcuts === 'boolean' ? raw.enableClipboardShortcuts : defaultPreferences.enableClipboardShortcuts,
+        rightClickPaste: typeof raw.rightClickPaste === 'boolean' ? raw.rightClickPaste : defaultPreferences.rightClickPaste,
       })
     )
   } catch {
@@ -234,6 +240,8 @@ function normalizePreferences(raw: unknown) {
     lineHeight: typeof data.lineHeight === 'number' ? data.lineHeight : defaultPreferences.lineHeight,
     letterSpacing: typeof data.letterSpacing === 'number' ? data.letterSpacing : defaultPreferences.letterSpacing,
     scrollback: typeof data.scrollback === 'number' ? data.scrollback : defaultPreferences.scrollback,
+    enableClipboardShortcuts: typeof data.enableClipboardShortcuts === 'boolean' ? data.enableClipboardShortcuts : defaultPreferences.enableClipboardShortcuts,
+    rightClickPaste: typeof data.rightClickPaste === 'boolean' ? data.rightClickPaste : defaultPreferences.rightClickPaste,
   }
 }
 

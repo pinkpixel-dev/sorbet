@@ -78,6 +78,21 @@ export function TerminalCard({
     focusTerminalDom()
   }, [focusTerminalDom, onActivate])
 
+  const pasteFromClipboard = useCallback(async () => {
+    const text = await window.sorbet.clipboard.readText()
+    if (!text || !terminalRef.current) return
+
+    focusTerminal()
+    terminalRef.current.paste(text)
+  }, [focusTerminal])
+
+  const copySelectionToClipboard = useCallback(async () => {
+    const selection = terminalRef.current?.getSelection() || ''
+    if (!selection) return
+
+    await window.sorbet.clipboard.writeText(selection)
+  }, [])
+
   useEffect(() => {
     if (isInitialized.current || !containerRef.current) return
     isInitialized.current = true
@@ -226,6 +241,34 @@ export function TerminalCard({
     scheduleTerminalFit()
   }, [preferences.fontFamily, preferences.fontSize, preferences.letterSpacing, preferences.lineHeight, preferences.scrollback, scheduleTerminalFit])
 
+  useEffect(() => {
+    if (!terminalRef.current) return
+
+    terminalRef.current.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+      const isModifierPressed = window.sorbet.platform === 'darwin' ? event.metaKey : event.ctrlKey
+      if (!preferences.enableClipboardShortcuts || !isModifierPressed || !event.shiftKey) {
+        return true
+      }
+
+      const key = event.key.toLowerCase()
+
+      if (key === 'c') {
+        if (terminalRef.current?.hasSelection()) {
+          void copySelectionToClipboard()
+          return false
+        }
+        return true
+      }
+
+      if (key === 'v') {
+        void pasteFromClipboard()
+        return false
+      }
+
+      return true
+    })
+  }, [copySelectionToClipboard, pasteFromClipboard, preferences.enableClipboardShortcuts])
+
   // Fit terminal when container resizes
   useEffect(() => {
     if (!containerRef.current) return
@@ -235,6 +278,21 @@ export function TerminalCard({
     observer.observe(containerRef.current)
     return () => observer.disconnect()
   }, [scheduleTerminalFit])
+
+  useEffect(() => {
+    if (!containerRef.current) return
+
+    const element = containerRef.current
+    const handleContextMenu = (event: MouseEvent) => {
+      if (!preferences.rightClickPaste) return
+
+      event.preventDefault()
+      void pasteFromClipboard()
+    }
+
+    element.addEventListener('contextmenu', handleContextMenu)
+    return () => element.removeEventListener('contextmenu', handleContextMenu)
+  }, [pasteFromClipboard, preferences.rightClickPaste])
 
   // Focus terminal when activated
   useEffect(() => {
