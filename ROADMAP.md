@@ -8,6 +8,8 @@ It is intended to guide product direction, help prioritize development, and give
 
 `Sorbet` already provides a strong foundation as a terminal workspace instead of a traditional tabbed terminal. The next stage is to make that workspace feel more intentional, more persistent, and more flexible across different kinds of developer activity.
 
+That direction is especially compelling in a world of CLI agents. As more people run tools like Codex CLI, Claude Code, Gemini CLI, Copilot CLI, Kiro, OpenCode, and similar agent-driven tools in terminals, the value of a multi-session workspace grows quickly. Sorbet can become a control room for agent-based work: terminals are where agents act, and the surrounding workspace helps users monitor, compare, inspect, and verify the results.
+
 The roadmap centers on four themes:
 
 - better workspace persistence
@@ -22,6 +24,7 @@ When evaluating roadmap items, prioritize work that supports these goals:
 - Keep the workspace feeling lightweight and fast.
 - Preserve the freeform canvas instead of drifting toward a crowded IDE clone.
 - Prefer features that improve organization, recall, and continuity between sessions.
+- Prefer features that make agent-driven workflows easier to supervise and verify.
 - Make advanced behavior optional through preferences rather than mandatory UI complexity.
 - Extend the current Electron + preload + renderer architecture cleanly and safely.
 
@@ -101,7 +104,7 @@ Why it matters:
 
 ## Mid-Term Expansion
 
-These items meaningfully broaden Sorbet from a terminal canvas into a more general-purpose developer workspace.
+These items broaden Sorbet from a terminal canvas into a more complete workspace for agent-assisted development and computer use.
 
 ### 5. Browser Windows in the Workspace
 
@@ -119,6 +122,7 @@ Why it matters:
 - supports real workflows that constantly switch between terminal and browser
 - reinforces the core idea of a unified workspace
 - creates a strong foundation for documentation, preview, and monitoring use cases
+- gives agent-heavy workflows a place to keep docs, previews, dashboards, and local apps visible next to active sessions
 
 Notes:
 
@@ -135,16 +139,19 @@ Potential scope:
 - open folders in dedicated cards
 - quick actions like reveal, copy path, open in terminal, or open file
 - drag files from explorer cards into terminal cards where platform support allows
+- surface recently changed files so users can quickly inspect what an agent just modified
 
 Why it matters:
 
 - reduces context switching for project navigation
 - pairs especially well with saved workspaces
 - expands Sorbet into a better project command center without requiring a full IDE
+- makes it easier to review files touched by CLI agents without leaving the workspace
+- helps users stay oriented in a repository while several agent sessions are active at once
 
 ### 7. Text Editor Windows
 
-Allow files to be opened in lightweight editor windows within the workspace.
+Allow files to be opened in lightweight editor or file-view windows within the workspace.
 
 Potential scope:
 
@@ -152,12 +159,15 @@ Potential scope:
 - tabless single-file editor cards
 - dirty-state indicator and save commands
 - open from filesystem windows or command palette
+- lightweight read-only viewing mode for quick inspection after agent-generated changes
 
 Why it matters:
 
 - covers quick edits without leaving Sorbet
 - complements terminal-driven workflows
 - keeps the product centered on workspace composition rather than deep IDE complexity
+- gives users a fast way to inspect, validate, and compare files after an agent edits them
+- supports a human-in-the-loop workflow where agent output is visible and reviewable in context
 
 Notes:
 
@@ -188,6 +198,7 @@ Potential directions:
 - remember the last workspace used for a given project path
 - reopen project-specific terminals in the correct working directory
 - suggest matching saved layouts when a folder is opened
+- restore the mix of agent terminals, file views, and supporting windows used for that project
 
 ### Commands and Command Palette
 
@@ -246,6 +257,7 @@ Examples:
 - run common boot commands
 - open a localhost URL in a browser card
 - restore a docs or notes file in an editor card
+- reopen a file tree or changed-file view used to supervise agent output
 
 This would make Sorbet especially compelling for repeatable project setups.
 
@@ -305,4 +317,4 @@ These decisions will shape implementation details:
 
 ## Summary
 
-The strongest next step for `Sorbet` is to deepen the workspace concept before broadening it. Saved workspaces, a sidebar, pinning, and per-window identity would make the existing terminal canvas much more powerful. Once that foundation is solid, browser, filesystem, and editor windows can expand Sorbet into a flexible developer control center without losing its original character.
+The strongest next step for `Sorbet` is to deepen the workspace concept before broadening it. Saved workspaces, a sidebar, pinning, and per-window identity would make the existing terminal canvas much more powerful. Once that foundation is solid, browser, filesystem, and editor windows can expand Sorbet into a flexible control center for CLI-agent workflows without losing its original character.
