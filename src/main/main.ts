@@ -6,6 +6,40 @@ import Store from 'electron-store'
 
 const isDev = process.env.NODE_ENV !== 'production'
 const githubRepoUrl = 'https://github.com/pinkpixel-dev/sorbet'
+const defaultPreferences = {
+  defaultThemeId: 'sorbet',
+  fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", Menlo, monospace',
+  fontSize: 13,
+  lineHeight: 1.2,
+  letterSpacing: 0,
+  scrollback: 5000,
+}
+const themeTemplate = {
+  id: 'custom-neon',
+  name: 'Custom Neon',
+  background: '#10161e',
+  foreground: '#edf6ff',
+  cursor: '#7ef9ff',
+  cursorAccent: '#10161e',
+  selectionBackground: '#7ef9ff33',
+  black: '#202735',
+  red: '#ff5fa2',
+  green: '#b9ff6f',
+  yellow: '#ffe66b',
+  blue: '#7da6ff',
+  magenta: '#d98cff',
+  cyan: '#7ef9ff',
+  white: '#edf6ff',
+  brightBlack: '#526175',
+  brightRed: '#ff8cbc',
+  brightGreen: '#d2ff9a',
+  brightYellow: '#fff19a',
+  brightBlue: '#a6c1ff',
+  brightMagenta: '#ebb2ff',
+  brightCyan: '#b8fdff',
+  brightWhite: '#ffffff',
+  accent: '#ff5fa2',
+}
 
 if (process.platform === 'linux') {
   app.disableHardwareAcceleration()
@@ -24,6 +58,8 @@ interface PtySession {
 }
 
 const sessions = new Map<string, PtySession>()
+let themeDirectoryWatcher: fs.FSWatcher | null = null
+let configChangedTimeout: NodeJS.Timeout | null = null
 
 function resolveShell(): { command: string; args: string[] } {
   if (process.platform === 'win32') {
@@ -61,6 +97,138 @@ function openExternalUrl(url: string) {
   void shell.openExternal(url)
 }
 
+function getPreferencesPath() {
+  return path.join(app.getPath('userData'), 'preferences.json')
+}
+
+function getThemesDirectoryPath() {
+  return path.join(app.getPath('userData'), 'themes')
+}
+
+function writePrettyJson(filePath: string, value: unknown) {
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+}
+
+function ensureUserConfiguration() {
+  fs.mkdirSync(getThemesDirectoryPath(), { recursive: true })
+
+  if (!fs.existsSync(getPreferencesPath())) {
+    writePrettyJson(getPreferencesPath(), defaultPreferences)
+  }
+}
+
+function broadcastConfigChanged() {
+  BrowserWindow.getAllWindows().forEach((window) => {
+    if (!window.isDestroyed()) {
+      window.webContents.send('config:changed')
+    }
+  })
+}
+
+function scheduleConfigChangedBroadcast() {
+  if (configChangedTimeout) {
+    clearTimeout(configChangedTimeout)
+  }
+
+  configChangedTimeout = setTimeout(() => {
+    configChangedTimeout = null
+    broadcastConfigChanged()
+  }, 150)
+}
+
+function startConfigWatchers() {
+  if (themeDirectoryWatcher) return
+
+  fs.watchFile(getPreferencesPath(), { interval: 500 }, (current, previous) => {
+    if (current.mtimeMs !== previous.mtimeMs || current.size !== previous.size) {
+      scheduleConfigChangedBroadcast()
+    }
+  })
+
+  themeDirectoryWatcher = fs.watch(getThemesDirectoryPath(), () => {
+    scheduleConfigChangedBroadcast()
+  })
+}
+
+function normalizePreferences(raw: unknown) {
+  const data = typeof raw === 'object' && raw !== null ? raw as Record<string, unknown> : {}
+  return {
+    defaultThemeId: typeof data.defaultThemeId === 'string' ? data.defaultThemeId : defaultPreferences.defaultThemeId,
+    fontFamily: typeof data.fontFamily === 'string' ? data.fontFamily : defaultPreferences.fontFamily,
+    fontSize: typeof data.fontSize === 'number' ? data.fontSize : defaultPreferences.fontSize,
+    lineHeight: typeof data.lineHeight === 'number' ? data.lineHeight : defaultPreferences.lineHeight,
+    letterSpacing: typeof data.letterSpacing === 'number' ? data.letterSpacing : defaultPreferences.letterSpacing,
+    scrollback: typeof data.scrollback === 'number' ? data.scrollback : defaultPreferences.scrollback,
+  }
+}
+
+function readPreferences() {
+  ensureUserConfiguration()
+
+  try {
+    const raw = JSON.parse(fs.readFileSync(getPreferencesPath(), 'utf8')) as unknown
+    return normalizePreferences(raw)
+  } catch {
+    return defaultPreferences
+  }
+}
+
+function isThemeRecord(value: unknown): value is Record<string, string> {
+  if (typeof value !== 'object' || value === null) return false
+
+  const requiredKeys = [
+    'id', 'name', 'background', 'foreground', 'cursor', 'cursorAccent',
+    'selectionBackground', 'black', 'red', 'green', 'yellow', 'blue',
+    'magenta', 'cyan', 'white', 'brightBlack', 'brightRed', 'brightGreen',
+    'brightYellow', 'brightBlue', 'brightMagenta', 'brightCyan', 'brightWhite',
+    'accent',
+  ]
+
+  return requiredKeys.every((key) => typeof (value as Record<string, unknown>)[key] === 'string')
+}
+
+function readCustomThemes() {
+  ensureUserConfiguration()
+
+  return fs
+    .readdirSync(getThemesDirectoryPath(), { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .flatMap((entry) => {
+      const filePath = path.join(getThemesDirectoryPath(), entry.name)
+      try {
+        const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8')) as unknown
+        return isThemeRecord(parsed) ? [parsed] : []
+      } catch {
+        return []
+      }
+    })
+}
+
+async function openPreferencesJson() {
+  ensureUserConfiguration()
+  const error = await shell.openPath(getPreferencesPath())
+  if (error) {
+    shell.showItemInFolder(getPreferencesPath())
+  }
+}
+
+async function createThemeTemplateFile() {
+  ensureUserConfiguration()
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const filePath = path.join(getThemesDirectoryPath(), `theme-${timestamp}.json`)
+  writePrettyJson(filePath, {
+    ...themeTemplate,
+    id: `custom-${timestamp.toLowerCase()}`,
+    name: `Custom Theme ${timestamp}`,
+  })
+  scheduleConfigChangedBroadcast()
+  const error = await shell.openPath(filePath)
+  if (error) {
+    shell.showItemInFolder(filePath)
+  }
+}
+
 function buildAppMenu() {
   const isMac = process.platform === 'darwin'
   const appSubmenu: MenuItemConstructorOptions[] = [
@@ -75,6 +243,24 @@ function buildAppMenu() {
     { role: 'quit' },
   ]
   const fileSubmenu: MenuItemConstructorOptions[] = [
+    {
+      label: 'Preferences',
+      submenu: [
+        {
+          label: 'Edit Preferences JSON',
+          click: () => {
+            void openPreferencesJson()
+          },
+        },
+        {
+          label: 'Create New Theme',
+          click: () => {
+            void createThemeTemplateFile()
+          },
+        },
+      ],
+    },
+    { type: 'separator' },
     { role: 'close' },
   ]
   const editSubmenu: MenuItemConstructorOptions[] = isMac
@@ -294,7 +480,8 @@ ipcMain.handle('store:saveLayout', (_event, layout: unknown) => {
 
 // Get saved theme
 ipcMain.handle('store:getTheme', () => {
-  return store.get('theme', 'dark')
+  const preferences = readPreferences()
+  return store.get('theme', preferences.defaultThemeId)
 })
 
 // Save theme
@@ -303,8 +490,18 @@ ipcMain.handle('store:saveTheme', (_event, theme: string) => {
   return { success: true }
 })
 
+ipcMain.handle('config:getPreferences', () => {
+  return readPreferences()
+})
+
+ipcMain.handle('config:getCustomThemes', () => {
+  return readCustomThemes()
+})
+
 // ─── App Lifecycle ────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
+  ensureUserConfiguration()
+  startConfigWatchers()
   buildAppMenu()
   createWindow()
 
@@ -315,4 +512,14 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
+})
+
+app.on('before-quit', () => {
+  fs.unwatchFile(getPreferencesPath())
+  themeDirectoryWatcher?.close()
+  themeDirectoryWatcher = null
+  if (configChangedTimeout) {
+    clearTimeout(configChangedTimeout)
+    configChangedTimeout = null
+  }
 })

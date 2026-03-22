@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import GridLayout, { Layout } from 'react-grid-layout'
 import { TerminalCard } from './components/TerminalCard'
 import { ThemePicker } from './components/ThemePicker'
 import { useSorbetStore } from './store'
-import { themes } from './themes'
-import { LayoutItem, TerminalSession } from './types'
+import { builtInThemes, defaultTerminalPreferences, defaultTheme, mergeThemes } from './themes'
+import { LayoutItem, TerminalPreferences, TerminalSession, Theme } from './types'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import './app.css'
@@ -53,6 +53,8 @@ export default function App() {
   const layoutRef = useRef<LayoutItem[]>([])
   const hasRestoredWorkspace = useRef(false)
   const [gridWidth, setGridWidth] = useState(window.innerWidth)
+  const [availableThemes, setAvailableThemes] = useState<Theme[]>(builtInThemes)
+  const [preferences, setPreferences] = useState<TerminalPreferences>(defaultTerminalPreferences)
   const {
     sessions,
     layout,
@@ -68,7 +70,6 @@ export default function App() {
     toggleMaximizeSession,
   } = useSorbetStore()
 
-  const theme = themes[themeId] || themes.dark
   const visibleSessions = sessions.filter((session) => !session.isMinimized)
   const minimizedSessions = sessions.filter((session) => session.isMinimized)
   const gridSessions = maximizedSessionId
@@ -86,6 +87,20 @@ export default function App() {
       }))
     : layout.filter((item) => visibleSessions.some((session) => session.id === item.i))
 
+  const themesById = useMemo(
+    () =>
+      availableThemes.reduce<Record<string, Theme>>((acc, theme) => {
+        acc[theme.id] = theme
+        return acc
+      }, {}),
+    [availableThemes]
+  )
+
+  const theme =
+    themesById[themeId] ||
+    themesById[preferences.defaultThemeId] ||
+    defaultTheme
+
   useEffect(() => {
     layoutRef.current = layout
   }, [layout])
@@ -102,6 +117,16 @@ export default function App() {
     addSession(session, layoutItem)
   }, [addSession])
 
+  const loadUserConfiguration = useCallback(async () => {
+    const [nextPreferences, customThemes] = await Promise.all([
+      window.sorbet.store.getPreferences(),
+      window.sorbet.store.getCustomThemes(),
+    ])
+
+    setPreferences(nextPreferences)
+    setAvailableThemes(mergeThemes(customThemes))
+  }, [])
+
   // Load persisted layout and theme on startup
   useEffect(() => {
     if (hasRestoredWorkspace.current) return
@@ -109,12 +134,16 @@ export default function App() {
 
     let cancelled = false
 
-    window.sorbet.store.getTheme().then((savedTheme) => {
-      if (!cancelled && savedTheme) setTheme(savedTheme)
-    })
-
-    window.sorbet.store.getLayout().then((savedLayout) => {
+    Promise.all([
+      loadUserConfiguration(),
+      window.sorbet.store.getTheme(),
+      window.sorbet.store.getLayout(),
+    ]).then(([, savedTheme, savedLayout]) => {
       if (cancelled) return
+
+      if (savedTheme) {
+        setTheme(savedTheme)
+      }
 
       if (savedLayout && savedLayout.length > 0) {
         restoreWorkspace(savedLayout)
@@ -127,7 +156,19 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [restoreWorkspace, setTheme, spawnTerminal])
+  }, [loadUserConfiguration, restoreWorkspace, setTheme, spawnTerminal])
+
+  useEffect(() => {
+    return window.sorbet.store.onConfigChanged(() => {
+      void loadUserConfiguration()
+    })
+  }, [loadUserConfiguration])
+
+  useEffect(() => {
+    if (!themesById[themeId]) {
+      setTheme(preferences.defaultThemeId)
+    }
+  }, [preferences.defaultThemeId, setTheme, themeId, themesById])
 
   useEffect(() => {
     const handleResize = () => setGridWidth(window.innerWidth)
@@ -243,7 +284,7 @@ export default function App() {
 
         {/* Theme picker */}
         <div style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          <ThemePicker currentThemeId={themeId} onSelect={handleThemeChange} />
+          <ThemePicker currentThemeId={theme.id} themes={availableThemes} onSelect={handleThemeChange} />
         </div>
       </div>
 
@@ -289,6 +330,7 @@ export default function App() {
                   key={session.id}
                   sessionId={session.id}
                   theme={theme}
+                  preferences={preferences}
                   isActive={activeSessionId === session.id}
                   isMaximized={maximizedSessionId === session.id}
                   onActivate={() => setActiveSession(session.id)}

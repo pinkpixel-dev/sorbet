@@ -30,7 +30,7 @@ export const useSorbetStore = create<SorbetStore>((set) => ({
   activeSessionId: null,
   maximizedSessionId: null,
   layout: [],
-  themeId: 'dark',
+  themeId: 'sorbet',
 
   addSession: (session, layoutItem) =>
     set((state) => ({

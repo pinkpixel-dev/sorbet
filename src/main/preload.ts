@@ -40,5 +40,13 @@ contextBridge.exposeInMainWorld('sorbet', {
     saveLayout: (layout: unknown) => ipcRenderer.invoke('store:saveLayout', layout),
     getTheme: () => ipcRenderer.invoke('store:getTheme'),
     saveTheme: (theme: string) => ipcRenderer.invoke('store:saveTheme', theme),
+    getPreferences: () => ipcRenderer.invoke('config:getPreferences'),
+    getCustomThemes: () => ipcRenderer.invoke('config:getCustomThemes'),
+    onConfigChanged: (callback: () => void) => {
+      const channel = 'config:changed'
+      const handler = () => callback()
+      ipcRenderer.on(channel, handler)
+      return () => ipcRenderer.removeListener(channel, handler)
+    },
   },
 })

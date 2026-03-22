@@ -30,5 +30,13 @@ electron_1.contextBridge.exposeInMainWorld('sorbet', {
         saveLayout: (layout) => electron_1.ipcRenderer.invoke('store:saveLayout', layout),
         getTheme: () => electron_1.ipcRenderer.invoke('store:getTheme'),
         saveTheme: (theme) => electron_1.ipcRenderer.invoke('store:saveTheme', theme),
+        getPreferences: () => electron_1.ipcRenderer.invoke('config:getPreferences'),
+        getCustomThemes: () => electron_1.ipcRenderer.invoke('config:getCustomThemes'),
+        onConfigChanged: (callback) => {
+            const channel = 'config:changed';
+            const handler = () => callback();
+            electron_1.ipcRenderer.on(channel, handler);
+            return () => electron_1.ipcRenderer.removeListener(channel, handler);
+        },
     },
 });

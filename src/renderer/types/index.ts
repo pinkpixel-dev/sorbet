@@ -20,6 +20,9 @@ export interface SorbetAPI {
     saveLayout: (layout: LayoutItem[]) => Promise<{ success: boolean }>
     getTheme: () => Promise<string>
     saveTheme: (theme: string) => Promise<{ success: boolean }>
+    getPreferences: () => Promise<TerminalPreferences>
+    getCustomThemes: () => Promise<Theme[]>
+    onConfigChanged: (callback: () => void) => () => void
   }
 }
 
@@ -72,4 +75,13 @@ export interface Theme {
   brightWhite: string
   // UI accent
   accent: string
+}
+
+export interface TerminalPreferences {
+  defaultThemeId: string
+  fontFamily: string
+  fontSize: number
+  lineHeight: number
+  letterSpacing: number
+  scrollback: number
 }

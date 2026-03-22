@@ -2,13 +2,14 @@ import { useEffect, useRef, useCallback, useMemo, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
-import { Theme } from '../types'
+import { TerminalPreferences, Theme } from '../types'
 import { useSorbetStore } from '../store'
 import '@xterm/xterm/css/xterm.css'
 
 interface TerminalCardProps {
   sessionId: string
   theme: Theme
+  preferences: TerminalPreferences
   isActive: boolean
   isMaximized: boolean
   onActivate: () => void
@@ -19,6 +20,7 @@ interface TerminalCardProps {
 export function TerminalCard({
   sessionId,
   theme,
+  preferences,
   isActive,
   isMaximized,
   onActivate,
@@ -82,13 +84,13 @@ export function TerminalCard({
 
     // Build xterm instance
     const term = new Terminal({
-      fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", Menlo, monospace',
-      fontSize: 13,
-      lineHeight: 1.2,
-      letterSpacing: 0,
+      fontFamily: preferences.fontFamily,
+      fontSize: preferences.fontSize,
+      lineHeight: preferences.lineHeight,
+      letterSpacing: preferences.letterSpacing,
       cursorBlink: true,
       cursorStyle: 'block',
-      scrollback: 5000,
+      scrollback: preferences.scrollback,
       theme: {
         background: theme.background,
         foreground: theme.foreground,
@@ -184,7 +186,7 @@ export function TerminalCard({
       cleanupRef.current.forEach((fn) => fn())
       window.sorbet.pty.kill(sessionId)
     }
-  }, [focusTerminalDom, sessionId, theme, updateSession])
+  }, [focusTerminalDom, sessionId, updateSession])
 
   // Update theme when it changes
   useEffect(() => {
@@ -213,6 +215,16 @@ export function TerminalCard({
       brightWhite: theme.brightWhite,
     }
   }, [theme])
+
+  useEffect(() => {
+    if (!terminalRef.current) return
+    terminalRef.current.options.fontFamily = preferences.fontFamily
+    terminalRef.current.options.fontSize = preferences.fontSize
+    terminalRef.current.options.lineHeight = preferences.lineHeight
+    terminalRef.current.options.letterSpacing = preferences.letterSpacing
+    terminalRef.current.options.scrollback = preferences.scrollback
+    scheduleTerminalFit()
+  }, [preferences.fontFamily, preferences.fontSize, preferences.letterSpacing, preferences.lineHeight, preferences.scrollback, scheduleTerminalFit])
 
   // Fit terminal when container resizes
   useEffect(() => {

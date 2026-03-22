@@ -1,9 +1,35 @@
-import { Theme } from '../types'
+import { TerminalPreferences, Theme } from '../types'
 
-export const themes: Record<string, Theme> = {
-  dark: {
+export const builtInThemes: Theme[] = [
+  {
+    id: 'sorbet',
+    name: 'Sorbet',
+    background: '#11161d',
+    foreground: '#edf6ff',
+    cursor: '#7ef9ff',
+    cursorAccent: '#11161d',
+    selectionBackground: '#7ef9ff33',
+    black: '#202735',
+    red: '#ff5fa2',
+    green: '#b9ff6f',
+    yellow: '#ffe66b',
+    blue: '#7da6ff',
+    magenta: '#d98cff',
+    cyan: '#7ef9ff',
+    white: '#edf6ff',
+    brightBlack: '#526175',
+    brightRed: '#ff8cbc',
+    brightGreen: '#d2ff9a',
+    brightYellow: '#fff19a',
+    brightBlue: '#a6c1ff',
+    brightMagenta: '#ebb2ff',
+    brightCyan: '#b8fdff',
+    brightWhite: '#ffffff',
+    accent: '#ff5fa2',
+  },
+  {
     id: 'dark',
-    name: 'Sorbet Dark',
+    name: 'Midnight Graphite',
     background: '#0d0d0f',
     foreground: '#e4e4e7',
     cursor: '#22d3ee',
@@ -27,8 +53,7 @@ export const themes: Record<string, Theme> = {
     brightWhite: '#f4f4f5',
     accent: '#22d3ee',
   },
-
-  dracula: {
+  {
     id: 'dracula',
     name: 'Dracula',
     background: '#282a36',
@@ -54,8 +79,7 @@ export const themes: Record<string, Theme> = {
     brightWhite: '#ffffff',
     accent: '#bd93f9',
   },
-
-  nord: {
+  {
     id: 'nord',
     name: 'Nord',
     background: '#2e3440',
@@ -81,8 +105,7 @@ export const themes: Record<string, Theme> = {
     brightWhite: '#eceff4',
     accent: '#88c0d0',
   },
-
-  tokyonight: {
+  {
     id: 'tokyonight',
     name: 'Tokyo Night',
     background: '#1a1b26',
@@ -108,8 +131,7 @@ export const themes: Record<string, Theme> = {
     brightWhite: '#c0caf5',
     accent: '#7aa2f7',
   },
-
-  catppuccin: {
+  {
     id: 'catppuccin',
     name: 'Catppuccin Mocha',
     background: '#1e1e2e',
@@ -135,8 +157,7 @@ export const themes: Record<string, Theme> = {
     brightWhite: '#a6adc8',
     accent: '#cba6f7',
   },
-
-  gruvbox: {
+  {
     id: 'gruvbox',
     name: 'Gruvbox Dark',
     background: '#282828',
@@ -162,6 +183,30 @@ export const themes: Record<string, Theme> = {
     brightWhite: '#ebdbb2',
     accent: '#fe8019',
   },
+]
+
+export const builtInThemesById: Record<string, Theme> = Object.fromEntries(
+  builtInThemes.map((theme) => [theme.id, theme])
+)
+
+export const defaultTheme = builtInThemes[0]
+
+export const defaultTerminalPreferences: TerminalPreferences = {
+  defaultThemeId: defaultTheme.id,
+  fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", Menlo, monospace',
+  fontSize: 13,
+  lineHeight: 1.2,
+  letterSpacing: 0,
+  scrollback: 5000,
 }
 
-export const defaultTheme = themes.dark
+export function mergeThemes(customThemes: Theme[]): Theme[] {
+  const seen = new Set<string>(builtInThemes.map((theme) => theme.id))
+  const uniqueCustomThemes = customThemes.filter((theme) => {
+    if (seen.has(theme.id)) return false
+    seen.add(theme.id)
+    return true
+  })
+
+  return [...builtInThemes, ...uniqueCustomThemes]
+}

@@ -1,16 +1,16 @@
 import { useState, useRef, useEffect } from 'react'
-import { themes } from '../themes'
 import { Theme } from '../types'
 
 interface ThemePickerProps {
   currentThemeId: string
+  themes: Theme[]
   onSelect: (themeId: string) => void
 }
 
-export function ThemePicker({ currentThemeId, onSelect }: ThemePickerProps) {
+export function ThemePicker({ currentThemeId, themes, onSelect }: ThemePickerProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
-  const currentTheme = themes[currentThemeId] || themes.dark
+  const currentTheme = themes.find((theme) => theme.id === currentThemeId) || themes[0]
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -53,7 +53,7 @@ export function ThemePicker({ currentThemeId, onSelect }: ThemePickerProps) {
             minWidth: '160px',
           }}
         >
-          {Object.values(themes).map((theme: Theme) => (
+          {themes.map((theme: Theme) => (
             <button
               key={theme.id}
               className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-left transition-colors"
