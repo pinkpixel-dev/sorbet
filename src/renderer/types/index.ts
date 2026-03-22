@@ -90,4 +90,7 @@ export interface TerminalPreferences {
   scrollback: number
   enableClipboardShortcuts: boolean
   rightClickPaste: boolean
+  middleClickPaste: boolean
+  copyShortcut: string
+  pasteShortcut: string
 }

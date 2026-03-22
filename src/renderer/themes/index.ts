@@ -199,7 +199,10 @@ export const defaultTerminalPreferences: TerminalPreferences = {
   letterSpacing: 0,
   scrollback: 5000,
   enableClipboardShortcuts: true,
-  rightClickPaste: true,
+  rightClickPaste: false,
+  middleClickPaste: true,
+  copyShortcut: 'CmdOrCtrl+Shift+C',
+  pasteShortcut: 'CmdOrCtrl+Shift+V',
 }
 
 export function mergeThemes(customThemes: Theme[]): Theme[] {

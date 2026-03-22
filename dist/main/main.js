@@ -52,9 +52,12 @@ const defaultPreferences = {
     letterSpacing: 0,
     scrollback: 5000,
     enableClipboardShortcuts: true,
-    rightClickPaste: true,
+    rightClickPaste: false,
+    middleClickPaste: true,
+    copyShortcut: 'CmdOrCtrl+Shift+C',
+    pasteShortcut: 'CmdOrCtrl+Shift+V',
 };
-const preferencesTemplateVersion = 2;
+const preferencesTemplateVersion = 4;
 const themeTemplate = {
     id: 'custom-neon',
     name: 'Custom Neon',
@@ -163,7 +166,15 @@ function createPreferencesTemplate(overrides = {}) {
                 letterSpacing: 'Extra spacing between characters. 0 is normal.',
                 scrollback: 'Number of lines kept in scrollback history.',
                 enableClipboardShortcuts: 'When true, Cmd/Ctrl+Shift+C copies the current selection and Cmd/Ctrl+Shift+V pastes clipboard contents into the terminal.',
-                rightClickPaste: 'When true, right-clicking inside the terminal pastes plain text from the clipboard.',
+                rightClickPaste: 'Optional. When true, right-clicking inside the terminal pastes plain text from the clipboard. Default is false.',
+                middleClickPaste: 'When true, clicking the middle mouse button inside the terminal pastes plain text from the clipboard. Default is true.',
+                copyShortcut: 'Shortcut string for copy. Use names like CmdOrCtrl+Shift+C, Ctrl+Alt+C, or Alt+C.',
+                pasteShortcut: 'Shortcut string for paste. Use names like CmdOrCtrl+Shift+V, Ctrl+Alt+V, or Alt+V.',
+            },
+            defaultClipboardBehavior: {
+                rightClick: 'By default this is not overridden by Sorbet. Depending on platform behavior, right-click may show the native context menu or copy selected text.',
+                middleClick: 'By default this pastes clipboard contents into the terminal.',
+                keyboard: 'By default use CmdOrCtrl+Shift+C to copy and CmdOrCtrl+Shift+V to paste.',
             },
         },
         ...defaultPreferences,
@@ -190,6 +201,9 @@ function ensurePreferencesTemplateShape() {
             scrollback: typeof raw.scrollback === 'number' ? raw.scrollback : defaultPreferences.scrollback,
             enableClipboardShortcuts: typeof raw.enableClipboardShortcuts === 'boolean' ? raw.enableClipboardShortcuts : defaultPreferences.enableClipboardShortcuts,
             rightClickPaste: typeof raw.rightClickPaste === 'boolean' ? raw.rightClickPaste : defaultPreferences.rightClickPaste,
+            middleClickPaste: typeof raw.middleClickPaste === 'boolean' ? raw.middleClickPaste : defaultPreferences.middleClickPaste,
+            copyShortcut: typeof raw.copyShortcut === 'string' ? raw.copyShortcut : defaultPreferences.copyShortcut,
+            pasteShortcut: typeof raw.pasteShortcut === 'string' ? raw.pasteShortcut : defaultPreferences.pasteShortcut,
         }));
     }
     catch {
@@ -243,6 +257,9 @@ function normalizePreferences(raw) {
         scrollback: typeof data.scrollback === 'number' ? data.scrollback : defaultPreferences.scrollback,
         enableClipboardShortcuts: typeof data.enableClipboardShortcuts === 'boolean' ? data.enableClipboardShortcuts : defaultPreferences.enableClipboardShortcuts,
         rightClickPaste: typeof data.rightClickPaste === 'boolean' ? data.rightClickPaste : defaultPreferences.rightClickPaste,
+        middleClickPaste: typeof data.middleClickPaste === 'boolean' ? data.middleClickPaste : defaultPreferences.middleClickPaste,
+        copyShortcut: typeof data.copyShortcut === 'string' ? data.copyShortcut : defaultPreferences.copyShortcut,
+        pasteShortcut: typeof data.pasteShortcut === 'string' ? data.pasteShortcut : defaultPreferences.pasteShortcut,
     };
 }
 function readPreferences() {

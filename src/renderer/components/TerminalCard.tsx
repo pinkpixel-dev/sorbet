@@ -41,6 +41,28 @@ export function TerminalCard({
   const [draftTitle, setDraftTitle] = useState('')
   const displayTitle = useMemo(() => session?.title || 'Terminal', [session?.title])
 
+  const matchesShortcut = useCallback((event: KeyboardEvent, shortcut: string) => {
+    const parts = shortcut
+      .split('+')
+      .map((part) => part.trim().toLowerCase())
+      .filter(Boolean)
+
+    if (parts.length === 0) return false
+
+    const keyPart = parts[parts.length - 1]
+    const modifiers = new Set(parts.slice(0, -1))
+    const wantsCmdOrCtrl = modifiers.has('cmdorctrl')
+    const modifierMatches =
+      event.shiftKey === modifiers.has('shift') &&
+      event.altKey === modifiers.has('alt') &&
+      event.metaKey === (modifiers.has('meta') || (wantsCmdOrCtrl && window.sorbet.platform === 'darwin')) &&
+      event.ctrlKey === (modifiers.has('ctrl') || (wantsCmdOrCtrl && window.sorbet.platform !== 'darwin'))
+
+    if (!modifierMatches) return false
+
+    return event.key.toLowerCase() === keyPart
+  }, [])
+
   const focusTerminalDom = useCallback(() => {
     const textarea = containerRef.current?.querySelector<HTMLTextAreaElement>('.xterm-helper-textarea')
     textarea?.focus()
@@ -245,14 +267,11 @@ export function TerminalCard({
     if (!terminalRef.current) return
 
     terminalRef.current.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-      const isModifierPressed = window.sorbet.platform === 'darwin' ? event.metaKey : event.ctrlKey
-      if (!preferences.enableClipboardShortcuts || !isModifierPressed || !event.shiftKey) {
+      if (!preferences.enableClipboardShortcuts) {
         return true
       }
 
-      const key = event.key.toLowerCase()
-
-      if (key === 'c') {
+      if (matchesShortcut(event, preferences.copyShortcut)) {
         if (terminalRef.current?.hasSelection()) {
           void copySelectionToClipboard()
           return false
@@ -260,14 +279,14 @@ export function TerminalCard({
         return true
       }
 
-      if (key === 'v') {
+      if (matchesShortcut(event, preferences.pasteShortcut)) {
         void pasteFromClipboard()
         return false
       }
 
       return true
     })
-  }, [copySelectionToClipboard, pasteFromClipboard, preferences.enableClipboardShortcuts])
+  }, [copySelectionToClipboard, matchesShortcut, pasteFromClipboard, preferences.copyShortcut, preferences.enableClipboardShortcuts, preferences.pasteShortcut])
 
   // Fit terminal when container resizes
   useEffect(() => {
@@ -293,6 +312,21 @@ export function TerminalCard({
     element.addEventListener('contextmenu', handleContextMenu)
     return () => element.removeEventListener('contextmenu', handleContextMenu)
   }, [pasteFromClipboard, preferences.rightClickPaste])
+
+  useEffect(() => {
+    if (!containerRef.current) return
+
+    const element = containerRef.current
+    const handleMouseDown = (event: MouseEvent) => {
+      if (!preferences.middleClickPaste || event.button !== 1) return
+
+      event.preventDefault()
+      void pasteFromClipboard()
+    }
+
+    element.addEventListener('mousedown', handleMouseDown)
+    return () => element.removeEventListener('mousedown', handleMouseDown)
+  }, [pasteFromClipboard, preferences.middleClickPaste])
 
   // Focus terminal when activated
   useEffect(() => {
