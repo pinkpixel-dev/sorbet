@@ -40,6 +40,7 @@ const electron_1 = require("electron");
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 const pty = __importStar(require("node-pty"));
+const child_process_1 = require("child_process");
 const electron_store_1 = __importDefault(require("electron-store"));
 const isDev = process.env.NODE_ENV !== 'production';
 const githubRepoUrl = 'https://github.com/pinkpixel-dev/sorbet';
@@ -51,6 +52,7 @@ const defaultPreferences = {
     letterSpacing: 0,
     scrollback: 5000,
 };
+const preferencesTemplateVersion = 1;
 const themeTemplate = {
     id: 'custom-neon',
     name: 'Custom Neon',
@@ -125,11 +127,76 @@ function getThemesDirectoryPath() {
 function writePrettyJson(filePath, value) {
     fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
+function createPreferencesTemplate(overrides = {}) {
+    return {
+        _template: {
+            version: preferencesTemplateVersion,
+            note: 'Edit the setting values below. Extra keys that start with "_" are ignored by Sorbet and only exist to help explain the file.',
+            fontFamilyHelp: 'Use any font installed on your computer. This value should be a CSS font-family string and should usually end with monospace as a fallback.',
+            fontFamilyExamples: [
+                '"JetBrains Mono", "Cascadia Code", monospace',
+                '"Fira Code", monospace',
+                '"SF Mono", Menlo, monospace',
+                '"Consolas", "Courier New", monospace',
+            ],
+            recommendedMonospaceFonts: [
+                'JetBrains Mono',
+                'Cascadia Code',
+                'Consolas',
+                'Menlo',
+                'Monaco',
+                'DejaVu Sans Mono',
+                'Liberation Mono',
+            ],
+            nerdFonts: {
+                recommendation: 'If you want the widest glyph/icon support, install a Nerd Font and use it here as your primary terminal font.',
+                website: 'https://www.nerdfonts.com/',
+                repo: 'https://github.com/ryanoasis/nerd-fonts',
+            },
+            settingsGuide: {
+                defaultThemeId: 'The theme id to use by default for new launches if no theme has been selected yet.',
+                fontFamily: 'A CSS font-family string. Quote multi-word names.',
+                fontSize: 'Terminal font size in pixels.',
+                lineHeight: 'Line height multiplier. 1.0 to 1.3 is usually a good range.',
+                letterSpacing: 'Extra spacing between characters. 0 is normal.',
+                scrollback: 'Number of lines kept in scrollback history.',
+            },
+        },
+        ...defaultPreferences,
+        ...overrides,
+    };
+}
+function ensurePreferencesTemplateShape() {
+    const filePath = getPreferencesPath();
+    try {
+        const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        const currentVersion = typeof raw._template === 'object' &&
+            raw._template !== null &&
+            typeof raw._template.version === 'number'
+            ? raw._template.version
+            : 0;
+        if (currentVersion >= preferencesTemplateVersion)
+            return;
+        writePrettyJson(filePath, createPreferencesTemplate({
+            defaultThemeId: typeof raw.defaultThemeId === 'string' ? raw.defaultThemeId : defaultPreferences.defaultThemeId,
+            fontFamily: typeof raw.fontFamily === 'string' ? raw.fontFamily : defaultPreferences.fontFamily,
+            fontSize: typeof raw.fontSize === 'number' ? raw.fontSize : defaultPreferences.fontSize,
+            lineHeight: typeof raw.lineHeight === 'number' ? raw.lineHeight : defaultPreferences.lineHeight,
+            letterSpacing: typeof raw.letterSpacing === 'number' ? raw.letterSpacing : defaultPreferences.letterSpacing,
+            scrollback: typeof raw.scrollback === 'number' ? raw.scrollback : defaultPreferences.scrollback,
+        }));
+    }
+    catch {
+        writePrettyJson(filePath, createPreferencesTemplate());
+    }
+}
 function ensureUserConfiguration() {
     fs.mkdirSync(getThemesDirectoryPath(), { recursive: true });
     if (!fs.existsSync(getPreferencesPath())) {
-        writePrettyJson(getPreferencesPath(), defaultPreferences);
+        writePrettyJson(getPreferencesPath(), createPreferencesTemplate());
+        return;
     }
+    ensurePreferencesTemplateShape();
 }
 function broadcastConfigChanged() {
     electron_1.BrowserWindow.getAllWindows().forEach((window) => {
@@ -209,12 +276,85 @@ function readCustomThemes() {
         }
     });
 }
+function splitCommand(command) {
+    return command.trim().split(/\s+/).filter(Boolean);
+}
+function canUseCommand(command) {
+    const [binary] = splitCommand(command);
+    return Boolean(binary) && (binary.includes('/') ? fs.existsSync(binary) : true);
+}
+function launchDetached(command, args) {
+    const [binary, ...commandArgs] = splitCommand(command);
+    if (!binary) {
+        return Promise.resolve(false);
+    }
+    return new Promise((resolve) => {
+        let settled = false;
+        const child = (0, child_process_1.spawn)(binary, [...commandArgs, ...args], {
+            detached: true,
+            stdio: 'ignore',
+        });
+        child.once('error', () => {
+            if (!settled) {
+                settled = true;
+                resolve(false);
+            }
+        });
+        child.once('spawn', () => {
+            child.unref();
+            if (!settled) {
+                settled = true;
+                resolve(true);
+            }
+        });
+    });
+}
+async function openTextFile(filePath) {
+    const preferredEditor = process.env.VISUAL || process.env.EDITOR;
+    try {
+        if (preferredEditor && canUseCommand(preferredEditor)) {
+            if (await launchDetached(preferredEditor, [filePath])) {
+                return;
+            }
+        }
+        if (process.platform === 'darwin') {
+            if (await launchDetached('open', ['-t', filePath])) {
+                return;
+            }
+        }
+        if (process.platform === 'win32') {
+            if (await launchDetached('notepad.exe', [filePath])) {
+                return;
+            }
+        }
+        const linuxEditors = [
+            '/usr/bin/code',
+            '/usr/bin/codium',
+            '/usr/bin/gedit',
+            '/usr/bin/kate',
+            '/usr/bin/pluma',
+            '/usr/bin/mousepad',
+            '/usr/bin/leafpad',
+            '/usr/bin/nano',
+            '/usr/bin/vim',
+            '/usr/bin/vi',
+        ];
+        const availableEditor = linuxEditors.find((candidate) => fs.existsSync(candidate));
+        if (availableEditor) {
+            if (await launchDetached(availableEditor, [filePath])) {
+                return;
+            }
+        }
+    }
+    catch { }
+    const error = await electron_1.shell.openPath(filePath);
+    if (error) {
+        electron_1.shell.showItemInFolder(filePath);
+    }
+}
 async function openPreferencesJson() {
     ensureUserConfiguration();
-    const error = await electron_1.shell.openPath(getPreferencesPath());
-    if (error) {
-        electron_1.shell.showItemInFolder(getPreferencesPath());
-    }
+    await openTextFile(getPreferencesPath());
 }
 async function createThemeTemplateFile() {
     ensureUserConfiguration();
@@ -226,10 +366,7 @@ async function createThemeTemplateFile() {
         name: `Custom Theme ${timestamp}`,
     });
     scheduleConfigChangedBroadcast();
-    const error = await electron_1.shell.openPath(filePath);
-    if (error) {
-        electron_1.shell.showItemInFolder(filePath);
-    }
+    await openTextFile(filePath);
 }
 function buildAppMenu() {
     const isMac = process.platform === 'darwin';

@@ -11,7 +11,7 @@
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.main.json",
     "electron": "wait-on http://localhost:5173 dist/main/main.js dist/main/preload.js && node scripts/start-electron.cjs",
-    "start": "concurrently \"npm run dev\" \"npm run electron\""
+    "start": "concurrently --kill-others --success first \"npm run dev\" \"npm run electron\""
   },
   "keywords": [],
   "author": "",
