@@ -2,18 +2,18 @@
 
 ## Purpose
 
-This document is intended to help developers understand how `Sorbet` is structured, how the runtime pieces communicate, and where to make changes when extending the project.
+This document explains how `Sorbet` is structured in `v1.0.0`, how the runtime pieces communicate, and where to make changes when extending the project.
 
-The application is a desktop terminal workspace built on Electron. It combines:
+Sorbet is a desktop terminal workspace built on Electron. It combines:
 
 - a privileged Electron main process
 - a secure preload bridge
 - a React renderer UI
 - PTY-backed shell processes
 
-The design keeps process management and persistence in the main process while the renderer remains focused on UI state, layout, and terminal presentation.
+The design keeps process management, menus, clipboard/native integration, and user configuration in the main process while the renderer stays focused on UI state, layout, and terminal presentation.
 
-## System Overview
+## Runtime Overview
 
 The runtime is composed of four major layers:
 
@@ -26,13 +26,14 @@ The runtime is composed of four major layers:
 
 1. Electron launches and creates the main window.
 2. The renderer loads either from the Vite dev server or the built renderer bundle.
-3. The renderer calls `window.sorbet.store.getTheme()` and `window.sorbet.store.getLayout()` during startup.
+3. The renderer requests workspace state, user preferences, and custom themes from `window.sorbet.store`.
 4. If a saved layout exists, the Zustand store reconstructs the workspace from it.
 5. If no layout exists, the renderer creates one initial terminal session.
 6. Each `TerminalCard` mounts xterm.js and asks the main process to spawn a PTY.
 7. Input from xterm.js is forwarded to the PTY over IPC.
 8. Output from the PTY is streamed back to the card over IPC.
-9. Layout and theme changes are persisted with `electron-store`.
+9. Layout and theme changes are persisted through `electron-store`.
+10. Preference and custom-theme changes are detected in the main process and pushed back to the renderer over a lightweight config-change event.
 
 ## Directory Guide
 
@@ -46,10 +47,12 @@ This directory contains the Electron main process and preload bridge.
   - selects and spawns shell processes with `node-pty`
   - owns the PTY session map
   - forwards PTY output and exit events to the renderer
-  - persists layout and theme state via `electron-store`
+  - persists workspace layout and selected theme
+  - creates and watches `preferences.json` plus the custom theme directory
+  - defines the native application menu
 - `preload.ts`
   - defines the safe API exposed to the renderer as `window.sorbet`
-  - wraps all PTY and store IPC calls
+  - wraps PTY, clipboard, and store access
 
 ### `src/renderer`
 
@@ -58,14 +61,17 @@ This directory contains the UI and renderer-side app state.
 - `App.tsx`
   - top-level application shell
   - workspace initialization
-  - keyboard shortcut handling
-  - theme selection
   - grid layout configuration
+  - theme selection
+  - preference loading
+  - custom theme loading
   - minimized-session dock
 - `components/TerminalCard.tsx`
   - xterm.js lifecycle
   - PTY creation and teardown
   - input/output wiring
+  - terminal resizing
+  - clipboard shortcuts and paste behavior
   - title editing
   - card window controls
 - `components/ThemePicker.tsx`
@@ -73,7 +79,8 @@ This directory contains the UI and renderer-side app state.
 - `store/index.ts`
   - Zustand store for sessions, theme, active state, and layout
 - `themes/index.ts`
-  - theme catalog
+  - built-in theme catalog
+  - default terminal preference values
 - `types/index.ts`
   - renderer-side shared types and `window.sorbet` typing
 
@@ -83,14 +90,14 @@ This directory contains the UI and renderer-side app state.
   - Vite configuration for the renderer build and dev server
 - `scripts/start-electron.cjs`
   - helper script that launches Electron with the correct environment in development
-- `tsconfig.json`
-  - renderer TypeScript configuration
-- `tsconfig.main.json`
-  - main-process TypeScript configuration
+- `README.md`
+  - user-facing project overview and setup instructions
+- `CHANGELOG.md`
+  - release history
 
 ## Main Process Design
 
-The main process is the trust boundary for anything that requires Node.js or native access.
+The main process is the trust boundary for anything that requires Node.js, native access, or desktop integration.
 
 ### Responsibilities
 
@@ -99,6 +106,9 @@ The main process is the trust boundary for anything that requires Node.js or nat
 - PTY process lifecycle
 - persistence via `electron-store`
 - secure handling of external links
+- native application menu construction
+- user configuration file management
+- clipboard/file-launch integration support for preferences and theme editing
 
 ### Window lifecycle
 
@@ -137,16 +147,20 @@ The shell selection logic prefers:
 
 Windows uses `powershell.exe`.
 
-Interactive shells are launched with `-i` when appropriate so users get their normal interactive shell behavior and startup files.
+Interactive shells are launched with `-i` when appropriate so users get normal interactive shell behavior and startup files.
 
-### Persistence
+### Persistence and user config
 
-The app currently stores:
+Sorbet uses two persistence paths:
 
-- `layout`
-- `theme`
+- `electron-store` for:
+  - `layout`
+  - `theme`
+- JSON files in Electron `userData` for:
+  - `preferences.json`
+  - `themes/*.json`
 
-These are written with `electron-store` in the main process and consumed by the renderer through the preload bridge.
+The preferences file is intentionally human-editable and includes an ignored `_template` section with inline guidance. The custom theme directory is watched and valid theme files are added to the renderer theme list automatically.
 
 ## Preload Bridge Design
 
@@ -154,6 +168,10 @@ The preload script exposes a small API under `window.sorbet`.
 
 ### Exposed namespaces
 
+- `window.sorbet.platform`
+- `window.sorbet.clipboard`
+  - `readText()`
+  - `writeText(text)`
 - `window.sorbet.pty`
   - `create(sessionId, cols, rows)`
   - `write(sessionId, data)`
@@ -166,10 +184,13 @@ The preload script exposes a small API under `window.sorbet`.
   - `saveLayout(layout)`
   - `getTheme()`
   - `saveTheme(theme)`
+  - `getPreferences()`
+  - `getCustomThemes()`
+  - `onConfigChanged(callback)`
 
 ### Why this matters
 
-This pattern keeps Electron-specific details out of the UI layer and helps the renderer stay testable and portable in principle. If new privileged operations are added later, they should be routed through this bridge rather than exposing direct Node access to the renderer.
+This pattern keeps Electron-specific details out of the UI layer and helps the renderer stay testable and safer by default. If new privileged operations are added later, they should be routed through this bridge rather than exposing direct Node access to the renderer.
 
 ## Renderer Design
 
@@ -177,11 +198,12 @@ The renderer is responsible for translating application state into the terminal 
 
 ### `App.tsx`
 
-`App.tsx` owns the top-level orchestration of the workspace.
+`App.tsx` owns top-level workspace orchestration.
 
 Key responsibilities:
 
 - restoring persisted workspace state on first load
+- loading user preferences and custom themes
 - creating a default terminal when there is no saved layout
 - managing the grid width for `react-grid-layout`
 - autosaving layout changes
@@ -213,9 +235,11 @@ Responsibilities include:
 - writing PTY output back into xterm
 - reacting to terminal title updates
 - resizing the PTY when the card changes size
+- updating terminal font and theme options from preferences
+- supporting copy/paste shortcuts and middle-click paste
 - killing the PTY on unmount
 
-Because card mount/unmount controls PTY lifecycle, any future virtualization or offscreen rendering changes should be designed carefully to avoid killing sessions unexpectedly.
+One important implementation detail for `1.0.0`: PTY creation is intentionally separated from preference and clipboard behavior updates so terminal sessions are not torn down by unrelated UI state changes.
 
 ## State Model
 
@@ -246,9 +270,7 @@ The Zustand store in `src/renderer/store/index.ts` is the authoritative renderer
 - Removing a session also removes its layout item.
 - Restoring a workspace recreates sessions from saved layout items.
 - Minimized sessions stay in state but are omitted from the grid.
-- Maximizing a session swaps the grid layout to a single full-width item.
-
-One implementation detail worth noting: `restoreWorkspace` recreates sessions using `Date.now()` at restore time, so `createdAt` reflects restoration time rather than the original session creation time.
+- Maximized sessions temporarily replace the grid layout with a single item.
 
 ## UI Layout Model
 
@@ -256,11 +278,12 @@ The card canvas uses `react-grid-layout`.
 
 ### Current layout defaults
 
-- `cols = 12`
-- `rowHeight = 30`
+- `cols = 48`
+- `rowHeight = 8`
 - `margin = [6, 6]`
 - `containerPadding = [8, 8]`
-- new cards default to approximately half-width and 8 rows tall
+- new cards default to about one-third width and 36 rows tall
+- new cards attempt to open to the right of the most recent card before wrapping downward
 
 ### Visibility model
 
@@ -268,24 +291,53 @@ The card canvas uses `react-grid-layout`.
 - minimized sessions render in the bottom dock
 - maximized sessions temporarily replace the grid layout with a single item
 
-This is a clean and simple model, but changes to layout persistence should take care not to store temporary maximize-only layout substitutions.
-
 ## Theme System
 
 Themes are defined as plain objects in `src/renderer/themes/index.ts`.
 
-Each theme includes:
+### Built-in themes
 
-- terminal colors for xterm.js
-- a display name
-- an `accent` color for UI controls and highlights
+`1.0.0` ships with:
 
-Adding a new theme is straightforward:
+- `Sorbet`
+- `Midnight Graphite`
+- `Dracula`
+- `Nord`
+- `Tokyo Night`
+- `Catppuccin Mocha`
+- `Gruvbox Dark`
 
-1. add the theme object
-2. give it a unique `id`
-3. make sure all xterm color fields are present
-4. verify the dropdown renders it correctly
+### Custom themes
+
+Custom themes are plain JSON files placed in the user theme directory. The main process validates them structurally and the renderer merges them after the built-in theme list.
+
+## Clipboard Model
+
+Clipboard behavior is split between defaults and user overrides.
+
+### Current defaults
+
+- `Cmd/Ctrl+Shift+C` copies the current terminal selection
+- `Cmd/Ctrl+Shift+V` pastes into the terminal
+- middle-click paste is enabled
+- right-click paste is available as an option but disabled by default
+
+### Preference knobs
+
+The preferences file supports:
+
+- `enableClipboardShortcuts`
+- `rightClickPaste`
+- `middleClickPaste`
+- `copyShortcut`
+- `pasteShortcut`
+
+Shortcut strings use a simple format such as:
+
+- `CmdOrCtrl+Shift+C`
+- `CmdOrCtrl+Shift+V`
+- `Ctrl+Alt+C`
+- `Alt+V`
 
 ## Development Workflow
 
@@ -313,84 +365,9 @@ npm run build
 npx electron-builder
 ```
 
-### Development process notes
+### Development notes
 
 - Renderer changes are served live by Vite.
 - Main-process changes are recompiled by `tsc --watch`.
 - Electron starts only after the renderer server and compiled main files are ready.
-
-If you are changing preload APIs or main-process IPC contracts, restart Electron after the relevant output has recompiled so the updated bridge is loaded.
-
-## Common Change Scenarios
-
-### Add a new persisted preference
-
-1. Add IPC handlers in `src/main/main.ts`.
-2. Expose the new methods in `src/main/preload.ts`.
-3. Extend the `SorbetAPI` type in `src/renderer/types/index.ts`.
-4. Consume the new methods from React or Zustand.
-
-### Add terminal controls
-
-Most terminal card interactions belong in `src/renderer/components/TerminalCard.tsx`. If the control requires privileged behavior, pair the UI change with new preload and main-process support.
-
-### Change startup behavior
-
-Startup restoration and default-session creation are implemented in `src/renderer/App.tsx`. Window behavior is controlled in `src/main/main.ts`.
-
-### Change shell startup behavior
-
-Shell resolution and spawn options are defined in `src/main/main.ts`. That is the correct place to add environment shaping, custom shell flags, or platform-specific process logic.
-
-## Debugging Notes
-
-### PTY does not start
-
-Check:
-
-- native `node-pty` build status
-- local shell availability
-- whether `SORBET_SHELL` points to a valid executable
-
-If needed:
-
-```bash
-npm rebuild node-pty
-```
-
-### Terminal content does not fit card size
-
-The resize path depends on:
-
-- `ResizeObserver` in `TerminalCard`
-- xterm.js `FitAddon`
-- `window.sorbet.pty.resize(...)`
-
-If layout changes but terminal rows/columns do not update, inspect that flow first.
-
-### Renderer loads but Electron behaviors fail
-
-This often points to one of these issues:
-
-- preload output is stale
-- Electron was not restarted after main/preload changes
-- the IPC contract changed on one side but not the other
-
-## Known Gaps
-
-- No automated tests are configured yet
-- No linting configuration is present
-- Packaging is manual via `npx electron-builder`
-- Dist output is committed in the workspace snapshot provided here
-
-## Recommended Next Improvements
-
-- add automated tests for store behavior and renderer interactions
-- add linting and formatting enforcement
-- add explicit packaging scripts in `package.json`
-- document electron-builder packaging targets
-- consider persisting more workspace metadata, such as terminal titles
-
-## Licensing
-
-The project is licensed under Apache License 2.0. Keep in mind that bundled dependencies retain their own licenses, so distributable builds should include third-party license review as part of release preparation.
+- Closing the Electron window ends the full `npm start` session.

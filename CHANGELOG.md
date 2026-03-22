@@ -1,65 +1,47 @@
 # Changelog
 
-## 2026-03-21
+## 1.0.0 - 2026-03-21
 
-### Initial scaffold
+First stable release of `Sorbet`.
 
-- Scaffolded `Sorbet` as an Electron + Vite + React + TypeScript desktop app.
-- Set up a renderer built around `react-grid-layout` for draggable and resizable terminal cards.
-- Added xterm.js terminal rendering with `@xterm/addon-fit` and `@xterm/addon-web-links`.
-- Added PTY-backed shell sessions through `node-pty` in the Electron main process.
-- Added persisted app settings with `electron-store`.
-- Added built-in theme support with Sorbet Dark, Dracula, Nord, Tokyo Night, Catppuccin Mocha, and Gruvbox Dark.
-- Added keyboard shortcut support for creating a new terminal with `Cmd/Ctrl+T`.
-- Added initial app shell, toolbar, theme picker, terminal card component, and basic layout persistence.
+### Added
 
-### Dev environment and startup fixes
+- Real PTY-backed terminal sessions using `node-pty`
+- Multi-window terminal workspace built on `react-grid-layout`
+- Minimize, maximize, restore, and close controls for terminal cards
+- Editable terminal titles with a hover-visible rename affordance
+- Minimized terminal dock
+- Built-in theme picker with the new branded default `Sorbet` theme
+- Custom user themes loaded from JSON files in the user theme directory
+- User-editable `preferences.json` with inline guidance and font recommendations
+- Native application menu with Sorbet Help links and Preferences actions
+- Clipboard support through the Electron preload bridge
+- Default copy and paste shortcuts for terminals
+- Middle-click paste support
 
-- Fixed Electron dev startup so it waits for the renderer and compiled main/preload files before launching.
-- Added [scripts/start-electron.cjs](/home/sizzlebop/PINKPIXEL/PROJECTS/CURRENT/sorbet/scripts/start-electron.cjs) to launch Electron with a cleaned environment.
-- Cleared `ELECTRON_RUN_AS_NODE` from the Electron launch path so Electron no longer booted as plain Node.
-- Set Vite dev server `strictPort: true` so Electron and Vite stay aligned on port `5173`.
-- Replaced the PostCSS config with CommonJS via [postcss.config.cjs](/home/sizzlebop/PINKPIXEL/PROJECTS/CURRENT/sorbet/postcss.config.cjs) to match the project setup and remove the module-type warning.
+### Changed
 
-### Renderer stability fixes
+- Promoted `Sorbet` to the default terminal theme for `1.0.0`
+- Renamed `Sorbet Dark` to `Midnight Graphite`
+- Reworked window dragging so the full title bar acts as the drag region
+- Smoothed terminal resize behavior with a finer grid and more responsive fit handling
+- Changed new terminal placement so windows open horizontally to the right when space is available
+- Increased default card size for new terminal windows
+- Updated development startup so closing the Electron window ends the full `npm start` session
+- Replaced the default Electron menu with a Sorbet-branded native application menu
 
-- Fixed a renderer crash caused by using `process.platform` directly in the browser bundle.
-- Exposed the current platform safely through the preload bridge as `window.sorbet.platform`.
-- Fixed a hook-order crash where `spawnTerminal` was referenced before initialization.
-- Removed `React.StrictMode` from the renderer entry during development because it was double-invoking terminal lifecycle effects and interfering with PTY-backed terminal initialization.
+### Fixed
 
-### Terminal and PTY fixes
+- Renderer crashes caused by unsafe platform access in the browser bundle
+- Terminal startup issues that previously prevented a real shell prompt from appearing
+- Resize behavior that only worked reliably at coarse snap points
+- Card control hit targets overlapping resize affordances
+- Dragging inconsistencies in the terminal card header
+- Preferences and theme-file launching issues that could freeze the app or open JSON files in the wrong application
+- PTY lifecycle bugs where terminal sessions could be torn down during unrelated UI updates
+- Blank-screen renderer regression caused by callback initialization order
 
-- Hardened Linux Electron startup by disabling problematic hardware acceleration paths and steering away from the broken Vulkan path in this environment.
-- Changed PTY shell resolution to prefer interactive `bash` or `zsh` before falling back, instead of defaulting to `fish` immediately.
-- Ensured PTY sessions are spawned with interactive shell arguments where appropriate.
-- Improved xterm focus handling so clicks activate the terminal and focus the hidden helper textarea used for keyboard input.
-- Fixed terminal startup so cards now initialize with a real shell prompt and accept input correctly.
+### Notes
 
-### Layout and workspace behavior
-
-- Fixed workspace restore so saved layouts load correctly on startup.
-- Fixed a layout-reset bug where resize changes could be overwritten by the restore flow.
-- Tracked grid width reactively so the layout responds correctly to window-size changes.
-- Improved session restore behavior so restored cards reappear consistently after app launch.
-
-### Terminal card UX
-
-- Made terminal card stoplight controls clickable by removing the invisible header overlay that was intercepting clicks.
-- Implemented red/yellow/green card controls:
-  close, minimize to a bottom dock, and maximize/restore.
-- Added a minimized terminal dock at the bottom of the window.
-- Added maximized-card mode so one terminal can temporarily take over the main canvas.
-- Improved click-to-focus behavior for cards and terminal bodies.
-
-### Titles and editing
-
-- Updated card headers so they show live session titles instead of always displaying `Terminal`.
-- Added inline title editing so each terminal card can be renamed by the user.
-- Reworked the card header layout so the terminal title is visually centered across the card instead of being offset by the stoplight controls.
-
-### Dev noise cleanup
-
-- Disabled automatic DevTools opening during normal development runs.
-- Reduced misleading dev-console noise from Autofill-related DevTools messages by no longer opening DevTools automatically.
-- Investigated Linux GPU, ANGLE, and Vulkan startup warnings and treated them as environment noise rather than the root cause of blank terminal cards.
+- Linux GPU, ANGLE, and Vulkan warnings seen during development were investigated and treated as environment noise rather than product blockers.
+- The generated preferences file now includes inline help, common monospace font suggestions, and links to Nerd Fonts for users who want broader glyph coverage.

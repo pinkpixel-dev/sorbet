@@ -1,73 +1,95 @@
 # Sorbet
 
-`Sorbet` is a desktop terminal workspace built with Electron, React, and xterm.js. Instead of a single terminal pane or fixed tab strip, it gives you a canvas of movable terminal cards that can be opened, resized, minimized, restored, and themed to fit the way you work.
+<p align="center">
+  <img src="./logo.png" width="300" height="300" alt="Sorbet logo" />
+</p>
 
-The project is designed around a simple idea: keep the flexibility of a tiling terminal UI while preserving the compatibility of a real PTY-backed shell. Each card runs an actual shell process through `node-pty`, so interactive tools like `vim`, `htop`, `btop`, `ssh`, and REPLs behave like you would expect in a native terminal.
+`Sorbet` is a desktop terminal workspace built with Electron, React, and xterm.js. Instead of a single terminal pane or fixed tab strip, it gives you a canvas of movable terminal cards that can be opened, resized, minimized, restored, themed, and tuned to fit the way you work.
+
+Version `1.0.0` focuses on making Sorbet feel like a polished daily-driver terminal workspace: smoother drag/resize behavior, a branded default theme, real PTY-backed shells, persistent workspace state, custom theme JSON support, and user-editable terminal preferences.
 
 ## Highlights
 
-- Multi-session terminal workspace with drag-and-resize cards
+- Multi-session terminal workspace with draggable, resizable terminal cards
 - Real PTY-backed shells powered by `node-pty`
-- Workspace persistence for layout and selected theme
-- Minimize and maximize controls for session management
-- Editable terminal titles
-- Built-in theme switcher with six bundled themes
-- Clickable links inside terminal output
-- Keyboard shortcut for quickly opening new terminals
-- Electron preload bridge with context isolation enabled
+- Persistent workspace layout and active theme
+- Minimize, maximize, restore, and close controls for each terminal window
+- Editable terminal titles with a hover affordance
+- Seven bundled themes, including the new default `Sorbet` theme
+- Custom user themes loaded from JSON files
+- User-editable preferences for theme, font, font size, clipboard behavior, and more
+- Clipboard support with multiline paste, middle-click paste, and configurable copy/paste hotkeys
+- Native application menu with Sorbet-specific Help and Preferences entries
+- Secure preload bridge with context isolation enabled
 
 ## Tech Stack
 
 - Electron for the desktop shell and privileged main process
 - React for the renderer UI
-- Zustand for renderer state management
+- Zustand for renderer-side state management
 - xterm.js for terminal rendering
 - `node-pty` for shell process management
 - `react-grid-layout` for the draggable/resizable workspace canvas
 - Vite for renderer development and bundling
 - TypeScript across both main and renderer processes
 
-## How It Works
-
-At a high level, the application is split into three parts:
-
-1. The Electron main process creates the native window, spawns PTY-backed shell sessions, handles IPC, and persists workspace settings.
-2. The preload script exposes a small, typed API on `window.sorbet` so the renderer can safely request PTY and storage operations.
-3. The React renderer manages the terminal workspace, card layout, theme selection, and terminal card lifecycle.
-
-When a new card is created, the renderer computes a layout position, adds a session to the Zustand store, and mounts a `TerminalCard`. That card initializes xterm.js, asks the main process to create a PTY, then wires terminal input/output over IPC. Layout and theme changes are saved through `electron-store`, allowing the workspace to be restored on the next launch.
-
 ## Features
 
 ### Terminal workspace
 
 - Open multiple terminal sessions in the same window
-- Drag cards to rearrange the workspace
-- Resize cards using handles on the grid layout
+- Drag cards by the full title bar
+- Resize cards with smoother, finer grid movement
 - Minimize sessions to a dock and restore them later
 - Maximize a session to focus on a single terminal
-- Close a session cleanly and terminate its PTY
+- Close sessions cleanly and terminate their PTYs
+- Spawn new cards horizontally to the right of the most recent card when space allows
 
 ### Terminal behavior
 
 - Real shell processes, not simulated command output
 - xterm.js rendering with automatic fit-on-resize behavior
-- Terminal title updates from shell escape sequences
-- Editable session names in the card title bar
-- Automatic focus management for active sessions
+- Automatic PTY resize when cards change size
+- Editable session names
+- Shell-driven title updates via escape sequences
+- Click-to-focus terminal behavior
 - Web links opened in the system browser
+- Clipboard support:
+  - `Cmd/Ctrl+Shift+C` to copy selection by default
+  - `Cmd/Ctrl+Shift+V` to paste by default
+  - middle-click paste enabled by default
+  - optional right-click paste via preferences
+  - multiline paste support through xterm’s paste path
 
-### Persistence and theming
+### Theming and customization
 
-- Layout is saved automatically whenever it changes
-- Theme selection is saved and restored on startup
-- Six built-in themes:
-  - Sorbet Dark
-  - Dracula
-  - Nord
-  - Tokyo Night
-  - Catppuccin Mocha
-  - Gruvbox Dark
+- Built-in theme switcher with these bundled themes:
+  - `Sorbet`
+  - `Midnight Graphite`
+  - `Dracula`
+  - `Nord`
+  - `Tokyo Night`
+  - `Catppuccin Mocha`
+  - `Gruvbox Dark`
+- Custom JSON themes loaded from the user theme folder
+- User-editable preferences file for:
+  - default theme
+  - font family
+  - font size
+  - line height
+  - letter spacing
+  - scrollback
+  - clipboard shortcuts and paste behavior
+
+## How It Works
+
+At a high level, the application is split into three parts:
+
+1. The Electron main process creates the native window, spawns PTY-backed shell sessions, manages menus, loads and watches user configuration files, and persists workspace settings.
+2. The preload script exposes a small, typed API on `window.sorbet` so the renderer can safely request PTY, clipboard, and storage operations.
+3. The React renderer manages the workspace layout, terminal lifecycle, theme selection, user preferences, and card interactions.
+
+When a new card is created, the renderer computes a layout position, adds a session to the Zustand store, and mounts a `TerminalCard`. That card initializes xterm.js, asks the main process to create a PTY, wires terminal input/output over IPC, and reacts to live preference changes such as font or clipboard behavior.
 
 ## Requirements
 
@@ -101,11 +123,13 @@ Start the full development environment with:
 npm start
 ```
 
-This command launches:
+This launches:
 
 - the Vite dev server for the renderer on `http://localhost:5173`
 - the TypeScript compiler in watch mode for the Electron main process
 - Electron after both the dev server and compiled main/preload output are ready
+
+When the Electron app window closes, the full dev session now exits automatically.
 
 You can also run the pieces separately if needed:
 
@@ -140,8 +164,6 @@ To package the application into desktop distributables, run:
 npx electron-builder
 ```
 
-Note: there is currently no dedicated `package` script in `package.json`, so packaging is done directly with `electron-builder`.
-
 ## Configuration
 
 ### Shell selection
@@ -157,20 +179,34 @@ On Windows, the app defaults to `powershell.exe`.
 
 Interactive shells like Bash, Zsh, and Fish are launched with `-i` so they behave like interactive terminal sessions.
 
-### Persisted data
+### Persisted workspace state
 
-The app stores two pieces of local state through `electron-store`:
+Sorbet stores workspace state through `electron-store`:
 
 - the terminal card layout
 - the selected theme ID
 
-On startup, the renderer requests both values through the preload API. If no layout exists yet, a single terminal card is created automatically.
+### User preferences and custom themes
 
-## Keyboard Shortcut
+Sorbet also creates user-editable JSON files under Electron’s `userData` directory:
 
-| Shortcut     | Action                      |
-| ------------ | --------------------------- |
-| `Cmd/Ctrl+T` | Open a new terminal session |
+- `preferences.json`
+- `themes/*.json`
+
+You can open these from the native menu:
+
+- `File -> Preferences -> Edit Preferences JSON`
+- `File -> Preferences -> Create New Theme`
+
+The generated preferences file includes inline guidance, example font-family strings, recommended monospace fonts, and Nerd Fonts links. Extra helper keys that start with `_` are ignored by the app.
+
+## Keyboard Shortcuts
+
+| Shortcut              | Action                       |
+| --------------------- | ---------------------------- |
+| `Cmd/Ctrl+T`          | Open a new terminal session  |
+| `Cmd/Ctrl+Shift+C`    | Copy terminal selection      |
+| `Cmd/Ctrl+Shift+V`    | Paste into the active terminal |
 
 ## Project Structure
 
@@ -178,18 +214,18 @@ On startup, the renderer requests both values through the preload API. If no lay
 sorbet/
 ├── src/
 │   ├── main/
-│   │   ├── main.ts              # Electron app lifecycle, PTY creation, persistence, IPC
+│   │   ├── main.ts              # Electron lifecycle, PTY creation, menus, user config, IPC
 │   │   └── preload.ts           # Safe renderer bridge exposed as window.sorbet
 │   └── renderer/
 │       ├── components/
-│       │   ├── TerminalCard.tsx # xterm.js setup, PTY wiring, card controls
+│       │   ├── TerminalCard.tsx # xterm.js setup, PTY wiring, clipboard, card controls
 │       │   └── ThemePicker.tsx  # Theme selection dropdown
 │       ├── store/
 │       │   └── index.ts         # Zustand store for sessions, layout, and theme
 │       ├── themes/
-│       │   └── index.ts         # Built-in theme definitions
+│       │   └── index.ts         # Built-in theme definitions and preference defaults
 │       ├── types/
-│       │   └── index.ts         # Shared renderer-side TypeScript types
+│       │   └── index.ts         # Renderer-side TypeScript types
 │       ├── App.tsx              # Workspace shell and grid layout orchestration
 │       ├── app.css              # Global renderer styles and xterm overrides
 │       └── main.tsx             # React entry point
@@ -197,6 +233,7 @@ sorbet/
 │   └── start-electron.cjs       # Launch helper for Electron in development
 ├── dist/                        # Build output
 ├── index.html                   # Vite HTML entry
+├── logo.png                     # Sorbet logo
 ├── package.json                 # Scripts, dependencies, metadata
 ├── tsconfig.json                # Renderer TypeScript config
 ├── tsconfig.main.json           # Main-process TypeScript config
@@ -214,18 +251,20 @@ The Electron main process is responsible for:
 - managing PTY session lifecycle
 - forwarding PTY output and exit events to the renderer
 - persisting layout and theme settings
-- opening terminal hyperlinks externally
-
-All live PTY sessions are stored in an in-memory `Map`, keyed by session ID. When the window closes, every PTY is killed to avoid leaving orphaned shell processes behind.
+- exposing native application menus
+- opening Sorbet help links externally
+- creating and watching user configuration files
 
 ### Preload bridge
 
-The preload script exposes two top-level groups on `window.sorbet`:
+The preload script exposes:
 
-- `pty` for session creation, input, resize, termination, and event subscriptions
-- `store` for loading and saving layout/theme state
+- `window.sorbet.pty`
+- `window.sorbet.store`
+- `window.sorbet.clipboard`
+- `window.sorbet.platform`
 
-This keeps the renderer isolated from direct Node.js or Electron APIs while still allowing the UI to control terminal sessions.
+This keeps the renderer isolated from direct Node.js or Electron APIs while still allowing the UI to control terminal sessions and clipboard integration.
 
 ### Renderer
 
@@ -234,55 +273,20 @@ The React renderer manages:
 - visible and minimized sessions
 - active and maximized session state
 - grid layout data
-- theme selection
+- built-in and custom theme selection
+- user preference loading
 - terminal card mounting/unmounting
-
-`react-grid-layout` drives the card canvas, while Zustand acts as the local application store.
 
 ## Extending the Project
 
-### Add a new theme
+### Add a new built-in theme
 
-Theme definitions live in `src/renderer/themes/index.ts`. Each theme includes:
+Built-in theme definitions live in `src/renderer/themes/index.ts`. Each theme includes:
 
 - an ID and display name
 - xterm-compatible terminal colors
 - a UI accent color used across the app shell
 
-### Change the default grid behavior
+### Add a custom user theme
 
-Grid behavior is configured in `src/renderer/App.tsx`, including:
-
-- `cols`
-- `rowHeight`
-- `margin`
-- `containerPadding`
-- resize handles
-- default card dimensions for newly created sessions
-
-### Add more persisted settings
-
-To persist new preferences:
-
-1. add handlers in `src/main/main.ts`
-2. expose them in `src/main/preload.ts`
-3. extend the renderer types in `src/renderer/types/index.ts`
-4. consume them from the React app or Zustand store
-
-## Current Limitations
-
-- There are no automated tests configured yet
-- Packaging is available through `electron-builder`, but there is no dedicated packaging script
-- The repository currently includes built output under `dist/`
-- The project metadata was updated to Apache 2.0, but dependency licenses remain independent and should be reviewed before redistribution
-
-## Development Notes
-
-- The renderer uses `strict` TypeScript with Vite’s bundler-style module resolution
-- The main process compiles separately with `tsc -p tsconfig.main.json`
-- `tailwindcss` is installed and used for utility classes, but styling is a mix of utility classes and inline styles
-- Linux-specific GPU-disabling flags are applied in the main process for compatibility
-
-## License
-
-This project is licensed under the Apache License 2.0. See `LICENSE` for details.
+Use `File -> Preferences -> Create New Theme` to create a theme template in the user themes directory, then edit the JSON file. Sorbet watches that directory and automatically adds valid theme files to the picker.
