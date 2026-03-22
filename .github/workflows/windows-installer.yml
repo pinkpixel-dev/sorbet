@@ -1,5 +1,8 @@
 name: Windows Installer
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
   release:
@@ -24,6 +27,8 @@ jobs:
         run: npm ci
 
       - name: Build Windows installer
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: npm run dist:win
 
       - name: Upload workflow artifact
