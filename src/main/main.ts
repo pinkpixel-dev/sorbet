@@ -5,7 +5,8 @@ import * as pty from 'node-pty'
 import { spawn } from 'child_process'
 import Store from 'electron-store'
 
-const isDev = process.env.NODE_ENV !== 'production'
+const isDev = !app.isPackaged
+const appId = 'dev.pinkpixel.sorbet'
 const githubRepoUrl = 'https://github.com/pinkpixel-dev/sorbet'
 const defaultPreferences = {
   defaultThemeId: 'sorbet',
@@ -55,6 +56,10 @@ if (process.platform === 'linux') {
   app.commandLine.appendSwitch('disable-features', 'Vulkan')
 }
 
+if (process.platform === 'win32') {
+  app.setAppUserModelId(appId)
+}
+
 // ─── Store ────────────────────────────────────────────────────────────────────
 const store = new Store()
 
@@ -99,6 +104,10 @@ function resolveShell(): { command: string; args: string[] } {
 
 // ─── Window ───────────────────────────────────────────────────────────────────
 let mainWindow: BrowserWindow | null = null
+
+function getWindowIconPath() {
+  return path.join(__dirname, '../../assets/icons/png/512x512.png')
+}
 
 function openExternalUrl(url: string) {
   void shell.openExternal(url)
@@ -547,6 +556,7 @@ function createWindow() {
     backgroundColor: '#09090b',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 14, y: 14 },
+    icon: process.platform === 'darwin' ? undefined : getWindowIconPath(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

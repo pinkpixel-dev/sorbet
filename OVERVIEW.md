@@ -10,17 +10,19 @@ Sorbet is a desktop terminal workspace built on Electron. It combines:
 - a secure preload bridge
 - a React renderer UI
 - PTY-backed shell processes
+- packaging and release scripts for desktop distribution
 
 The design keeps process management, menus, clipboard/native integration, and user configuration in the main process while the renderer stays focused on UI state, layout, and terminal presentation.
 
 ## Runtime Overview
 
-The runtime is composed of four major layers:
+The runtime is composed of five major layers:
 
 1. Electron main process
 2. Electron preload bridge
 3. React renderer
 4. PTY shell sessions
+5. Packaging and release tooling
 
 ### Runtime flow
 
@@ -34,6 +36,7 @@ The runtime is composed of four major layers:
 8. Output from the PTY is streamed back to the card over IPC.
 9. Layout and theme changes are persisted through `electron-store`.
 10. Preference and custom-theme changes are detected in the main process and pushed back to the renderer over a lightweight config-change event.
+11. Packaged builds load the bundled renderer based on `app.isPackaged` rather than environment variables.
 
 ## Directory Guide
 
@@ -90,6 +93,10 @@ This directory contains the UI and renderer-side app state.
   - Vite configuration for the renderer build and dev server
 - `scripts/start-electron.cjs`
   - helper script that launches Electron with the correct environment in development
+- `scripts/generate-icons.sh`
+  - generates Linux PNG icon sizes and the Windows `.ico` file from `assets/icon.png`
+- `scripts/build-rpm.sh`
+  - creates the Linux `.rpm` package from the unpacked Electron build
 - `README.md`
   - user-facing project overview and setup instructions
 - `CHANGELOG.md`
@@ -109,6 +116,7 @@ The main process is the trust boundary for anything that requires Node.js, nativ
 - native application menu construction
 - user configuration file management
 - clipboard/file-launch integration support for preferences and theme editing
+- packaged-app environment detection and runtime icon selection
 
 ### Window lifecycle
 
@@ -117,8 +125,11 @@ The main window is created hidden and shown only after `ready-to-show`. This red
 - `contextIsolation: true`
 - `nodeIntegration: false`
 - a preload script
+- a platform icon on Linux and Windows package builds
 
 That combination keeps the renderer sandboxed while still giving it a curated API surface.
+
+For `v1.0.0`, packaged builds use `app.isPackaged` to decide whether to load the local dev server or the bundled renderer assets. This avoids production builds accidentally trying to open `http://localhost:5173`.
 
 ### PTY management
 
@@ -362,7 +373,15 @@ npm run build
 ### Package
 
 ```bash
-npx electron-builder
+npm run dist:linux:x64
+```
+
+```bash
+npm run dist:linux:arm64
+```
+
+```bash
+npm run dist:win
 ```
 
 ### Development notes
@@ -371,3 +390,5 @@ npx electron-builder
 - Main-process changes are recompiled by `tsc --watch`.
 - Electron starts only after the renderer server and compiled main files are ready.
 - Closing the Electron window ends the full `npm start` session.
+- Linux release packaging emits `AppImage`, `deb`, and `rpm` artifacts into `release/`.
+- Windows installers are built as NSIS `.exe` packages through GitHub Actions.

@@ -6,7 +6,7 @@
 
 `Sorbet` is a desktop terminal workspace built with Electron, React, and xterm.js. Instead of a single terminal pane or fixed tab strip, it gives you a canvas of movable terminal cards that can be opened, resized, minimized, restored, themed, and tuned to fit the way you work.
 
-Version `1.0.0` focuses on making Sorbet feel like a polished daily-driver terminal workspace: smoother drag/resize behavior, a branded default theme, real PTY-backed shells, persistent workspace state, custom theme JSON support, and user-editable terminal preferences.
+Version `1.0.0` is the first stable Sorbet release. It brings the project from prototype territory into a practical daily-driver desktop terminal with PTY-backed sessions, persistent workspace state, bundled and custom themes, user-editable preferences, and Linux release packaging.
 
 ## Highlights
 
@@ -21,6 +21,8 @@ Version `1.0.0` focuses on making Sorbet feel like a polished daily-driver termi
 - Clipboard support with multiline paste, middle-click paste, and configurable copy/paste hotkeys
 - Native application menu with Sorbet-specific Help and Preferences entries
 - Secure preload bridge with context isolation enabled
+- Linux release packaging for `AppImage`, `deb`, and `rpm`
+- Windows installer build automation through GitHub Actions
 
 ## Tech Stack
 
@@ -111,9 +113,13 @@ npm rebuild node-pty
 
 ## Installation
 
+### From source
+
 ```bash
 npm install
 ```
+
+### From npm
 
 To install Sorbet globally from npm and launch it from anywhere:
 
@@ -126,6 +132,16 @@ Then run:
 ```bash
 sorbet
 ```
+
+### Linux release artifacts
+
+For `v1.0.0`, Sorbet publishes Linux desktop packages in these formats:
+
+- `AppImage`
+- `deb`
+- `rpm`
+
+The Windows installer is built separately in GitHub Actions as a `.exe` artifact.
 
 ## Development
 
@@ -182,11 +198,45 @@ That produces:
 - `dist/renderer` for the bundled React UI
 - `dist/main` for the compiled Electron main and preload scripts
 
-To package the application into desktop distributables, run:
+To package the application into the base Electron output directories, run:
 
 ```bash
 npx electron-builder
 ```
+
+For Sorbet release artifacts, use the dedicated packaging scripts:
+
+```bash
+npm run dist:linux:x64
+npm run dist:linux:arm64
+```
+
+These generate Linux packages in `release/` for:
+
+- `AppImage`
+- `deb`
+- `rpm`
+
+For the `arm64` release, run the command on an `arm64` Linux machine or runner so native modules such as `node-pty` rebuild for the correct target architecture.
+
+The icon set used by the packaged app and installers is generated from `assets/icon.png` with:
+
+```bash
+npm run icons
+```
+
+Windows installers are built in GitHub Actions from `.github/workflows/windows-installer.yml` and uploaded as workflow artifacts. On release events, the workflow also uploads the generated `.exe` file to the GitHub release.
+
+## Release Notes
+
+`v1.0.0` establishes the first stable Sorbet release line with:
+
+- real shell-backed terminals instead of simulated output
+- a polished card-based workspace with minimize and maximize flows
+- persisted layout and theme state between launches
+- custom themes and user-editable preferences JSON
+- Linux packaging with desktop integration metadata and generated app icons
+- Windows installer automation for release distribution
 
 ## Configuration
 

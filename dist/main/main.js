@@ -42,7 +42,8 @@ const fs = __importStar(require("fs"));
 const pty = __importStar(require("node-pty"));
 const child_process_1 = require("child_process");
 const electron_store_1 = __importDefault(require("electron-store"));
-const isDev = process.env.NODE_ENV !== 'production';
+const isDev = !electron_1.app.isPackaged;
+const appId = 'dev.pinkpixel.sorbet';
 const githubRepoUrl = 'https://github.com/pinkpixel-dev/sorbet';
 const defaultPreferences = {
     defaultThemeId: 'sorbet',
@@ -90,6 +91,9 @@ if (process.platform === 'linux') {
     electron_1.app.commandLine.appendSwitch('use-gl', 'swiftshader');
     electron_1.app.commandLine.appendSwitch('disable-features', 'Vulkan');
 }
+if (process.platform === 'win32') {
+    electron_1.app.setAppUserModelId(appId);
+}
 // ─── Store ────────────────────────────────────────────────────────────────────
 const store = new electron_store_1.default();
 const sessions = new Map();
@@ -120,6 +124,9 @@ function resolveShell() {
 }
 // ─── Window ───────────────────────────────────────────────────────────────────
 let mainWindow = null;
+function getWindowIconPath() {
+    return path.join(__dirname, '../../assets/icons/png/512x512.png');
+}
 function openExternalUrl(url) {
     void electron_1.shell.openExternal(url);
 }
@@ -526,6 +533,7 @@ function createWindow() {
         backgroundColor: '#09090b',
         titleBarStyle: 'hiddenInset',
         trafficLightPosition: { x: 14, y: 14 },
+        icon: process.platform === 'darwin' ? undefined : getWindowIconPath(),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,

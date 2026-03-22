@@ -1,5 +1,37 @@
-node_modules
+# Dependencies
+node_modules/
 
-# Other
+# Build output
+dist/
+release/
+
+# Generated packaging assets
+assets/icons/
+
+# Tooling caches
+.vite/
+.cache/
+coverage/
+*.tsbuildinfo
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Environment and local overrides
+.env
+.env.*
+!.env.example
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Local project scratch files
 start.txt
 deprecations.md

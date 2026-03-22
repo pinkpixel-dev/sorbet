@@ -2,6 +2,16 @@
   "name": "@pinkpixel/sorbet",
   "version": "1.0.0",
   "description": "Tiling terminal emulator with resizable card layout",
+  "homepage": "https://github.com/pinkpixel-dev/sorbet",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pinkpixel-dev/sorbet.git"
+  },
+  "author": {
+    "name": "PinkPixel",
+    "email": "admin@pinkpixel.dev",
+    "url": "https://pinkpixel.dev"
+  },
   "authors": [
     {
       "name": "PinkPixel",
@@ -23,15 +33,66 @@
     "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:main\"",
     "dev:renderer": "vite",
     "dev:main": "tsc -p tsconfig.main.json --watch",
+    "icons": "bash scripts/generate-icons.sh",
+    "postinstall": "electron-builder install-app-deps",
     "build": "npm run build:renderer && npm run build:main",
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.main.json",
+    "pack": "npm run icons && npm run build && electron-builder --dir",
+    "dist:linux:x64": "npm run icons && npm run build && electron-builder --linux AppImage deb dir --x64 && bash scripts/build-rpm.sh x64",
+    "dist:linux:arm64": "npm run icons && npm run build && electron-builder --linux AppImage deb dir --arm64 && bash scripts/build-rpm.sh arm64",
+    "dist:rpm:x64": "npm run icons && npm run build && electron-builder --linux dir --x64 && bash scripts/build-rpm.sh x64",
+    "dist:rpm:arm64": "npm run icons && npm run build && electron-builder --linux dir --arm64 && bash scripts/build-rpm.sh arm64",
+    "dist:win": "npm run icons && npm run build && electron-builder --win nsis --x64",
     "electron": "wait-on http://localhost:5173 dist/main/main.js dist/main/preload.js && node scripts/start-electron.cjs",
     "start": "concurrently --kill-others --success first \"npm run dev\" \"npm run electron\""
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "electron",
+    "terminal",
+    "xterm",
+    "react"
+  ],
   "license": "Apache-2.0",
+  "build": {
+    "appId": "dev.pinkpixel.sorbet",
+    "productName": "Sorbet",
+    "directories": {
+      "output": "release"
+    },
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "dir"
+      ],
+      "executableName": "sorbet",
+      "icon": "assets/icons/png",
+      "category": "Utility",
+      "artifactName": "${productName}-${version}-linux-${arch}.${ext}",
+      "desktop": {
+        "Name": "Sorbet",
+        "Comment": "Tiling terminal emulator with resizable card layout",
+        "Categories": "Utility;System;TerminalEmulator;",
+        "StartupWMClass": "sorbet"
+      }
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icons/icon.ico",
+      "artifactName": "${productName}-${version}-windows-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    }
+  },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-web-links": "^0.11.0",

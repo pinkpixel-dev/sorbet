@@ -18,6 +18,10 @@ First stable release of `Sorbet`.
 - Clipboard support through the Electron preload bridge
 - Default copy and paste shortcuts for terminals
 - Middle-click paste support
+- Linux packaging output for `AppImage`, `deb`, and `rpm`
+- Generated release icon assets derived from the Sorbet application icon
+- Windows NSIS installer build workflow in GitHub Actions
+- Repo-local packaging scripts for icon generation and RPM creation
 
 ### Changed
 
@@ -29,6 +33,8 @@ First stable release of `Sorbet`.
 - Increased default card size for new terminal windows
 - Updated development startup so closing the Electron window ends the full `npm start` session
 - Replaced the default Electron menu with a Sorbet-branded native application menu
+- Standardized the published package name to `@pinkpixel/sorbet` with the `sorbet` launcher command
+- Added release-oriented build scripts for Linux packaging and Windows installer generation
 
 ### Fixed
 
@@ -40,8 +46,11 @@ First stable release of `Sorbet`.
 - Preferences and theme-file launching issues that could freeze the app or open JSON files in the wrong application
 - PTY lifecycle bugs where terminal sessions could be torn down during unrelated UI updates
 - Blank-screen renderer regression caused by callback initialization order
+- Packaged-app startup regression where production builds could try to load the Vite dev server instead of bundled renderer assets
+- Linux desktop integration mismatch that caused generic gear icons in the taskbar for packaged builds
 
 ### Notes
 
 - Linux GPU, ANGLE, and Vulkan warnings seen during development were investigated and treated as environment noise rather than product blockers.
 - The generated preferences file now includes inline help, common monospace font suggestions, and links to Nerd Fonts for users who want broader glyph coverage.
+- Linux `arm64` packaging is supported through the release scripts, but should be built on an `arm64` runner or machine so native modules rebuild for the correct architecture.
