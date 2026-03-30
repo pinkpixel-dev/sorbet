@@ -8,7 +8,7 @@
 
 It is especially useful for running multiple CLI agents side by side in one tiling workspace. Tools like Claude Code CLI, OpenAI Codex CLI, GitHub Copilot CLI, Amazon Kiro CLI, Google Gemini CLI, OpenCode, and similar agent-driven terminal tools become much more powerful when you can keep several sessions visible at once for coding, research, debugging, review, or general help with tasks on your computer.
 
-Sorbet now includes named saved workspaces, a workspace sidebar, and pinned terminal windows on top of the `1.0.0` foundation of PTY-backed sessions, theming, preferences, and desktop packaging.
+Sorbet now includes named saved workspaces, a workspace sidebar, pinned terminal windows, and per-window theme identity on top of the `1.0.0` foundation of PTY-backed sessions, theming, preferences, and desktop packaging.
 
 ## Highlights
 
@@ -17,7 +17,8 @@ Sorbet now includes named saved workspaces, a workspace sidebar, and pinned term
 - Named saved workspaces with restore, rename, and delete actions
 - Workspace sidebar for switching between saved layouts
 - Window pinning and layout locking for terminal cards
-- Persistent workspace layout and active theme
+- Per-window themes with inheritable workspace defaults and color identity
+- Persistent workspace layout, workspace theme, and per-window theme overrides
 - Minimize, maximize, restore, and close controls for each terminal window
 - Editable terminal titles with a hover affordance
 - Seven bundled themes, including the new default `Sorbet` theme
@@ -67,6 +68,7 @@ Sorbet now includes named saved workspaces, a workspace sidebar, and pinned term
 - Browse saved workspaces from the built-in left sidebar
 - Rename and delete saved workspaces
 - Preserve terminal metadata such as titles, minimized state, and pinned state inside saved workspaces
+- Preserve per-window theme overrides inside saved workspaces
 
 ### Terminal behavior
 
@@ -95,6 +97,8 @@ Sorbet now includes named saved workspaces, a workspace sidebar, and pinned term
   - `Catppuccin Mocha`
   - `Gruvbox Dark`
 - Custom JSON themes loaded from the user theme folder
+- Optional per-window theme overrides with a one-click inherit-from-workspace mode
+- Color identity dots and accent strips to make parallel terminals easier to distinguish
 - User-editable preferences file for:
   - default theme
   - font family
@@ -110,7 +114,7 @@ At a high level, the application is split into three parts:
 
 1. The Electron main process creates the native window, spawns PTY-backed shell sessions, manages menus, loads and watches user configuration files, and persists workspace layouts, saved workspaces, and theme settings.
 2. The preload script exposes a small, typed API on `window.sorbet` so the renderer can safely request PTY, clipboard, and storage operations.
-3. The React renderer manages workspace restoration, saved-workspace switching, terminal lifecycle, theme selection, user preferences, and card interactions.
+3. The React renderer manages workspace restoration, saved-workspace switching, terminal lifecycle, workspace and per-window theme selection, user preferences, and card interactions.
 
 When a new card is created, the renderer computes a layout position, adds a session to the Zustand store, and mounts a `TerminalCard`. That card initializes xterm.js, asks the main process to create a PTY, wires terminal input/output over IPC, and reacts to live preference changes such as font or clipboard behavior.
 
@@ -266,7 +270,7 @@ Windows installers are built in GitHub Actions from `.github/workflows/windows-i
 
 - real shell-backed terminals instead of simulated output
 - a polished card-based workspace with minimize and maximize flows
-- persisted layout and theme state between launches
+- persisted layout, workspace theme, and per-window theme state between launches
 - custom themes and user-editable preferences JSON
 - Linux packaging with desktop integration metadata and generated app icons
 - Windows installer automation for release distribution
@@ -291,7 +295,9 @@ Interactive shells like Bash, Zsh, and Fish are launched with `-i` so they behav
 Sorbet stores workspace state through `electron-store`:
 
 - the terminal card layout
-- the selected theme ID
+- saved workspaces and the current workspace selection
+- the selected workspace theme ID
+- per-terminal theme overrides inside workspace snapshots
 
 ### User preferences and custom themes
 
@@ -325,10 +331,10 @@ sorbet/
 │   │   └── preload.ts           # Safe renderer bridge exposed as window.sorbet
 │   └── renderer/
 │       ├── components/
-│       │   ├── TerminalCard.tsx # xterm.js setup, PTY wiring, clipboard, card controls
+│       │   ├── TerminalCard.tsx # xterm.js setup, PTY wiring, clipboard, per-card theme controls
 │       │   └── ThemePicker.tsx  # Theme selection dropdown
 │       ├── store/
-│       │   └── index.ts         # Zustand store for sessions, layout, and theme
+│       │   └── index.ts         # Zustand store for sessions, layout, workspace theme, and snapshots
 │       ├── themes/
 │       │   └── index.ts         # Built-in theme definitions and preference defaults
 │       ├── types/
@@ -359,7 +365,7 @@ The Electron main process is responsible for:
 - loading the Vite dev server in development or built files in production
 - managing PTY session lifecycle
 - forwarding PTY output and exit events to the renderer
-- persisting layout and theme settings
+- persisting workspace snapshots and theme settings
 - exposing native application menus
 - opening Sorbet help links externally
 - creating and watching user configuration files
@@ -382,7 +388,8 @@ The React renderer manages:
 - visible and minimized sessions
 - active and maximized session state
 - grid layout data
-- built-in and custom theme selection
+- built-in and custom workspace theme selection
+- per-window theme overrides and color identity
 - user preference loading
 - terminal card mounting/unmounting
 

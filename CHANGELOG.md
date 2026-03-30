@@ -8,11 +8,12 @@
 - Workspace sidebar for browsing, switching, renaming, deleting, and saving workspaces
 - Window pinning so terminal cards can be locked against drag and resize changes
 - In-app workspace naming dialog for save-as and rename flows
+- Per-window theme overrides with inherit-from-workspace behavior and card-level color identity
 
 ### Changed
 
 - Expanded workspace persistence from a single saved layout into a multi-workspace model
-- Restoring a workspace now preserves session metadata such as title, minimized state, and pinned state
+- Restoring a workspace now preserves session metadata such as title, minimized state, pinned state, and per-window theme overrides
 - Existing single-layout installs are migrated into a default saved workspace automatically
 - Upgraded core desktop and build dependencies, including Electron, Vite, and electron-builder, to clear known security advisories
 - Development startup now auto-selects an available high port for the Vite renderer instead of assuming `5173`

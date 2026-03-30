@@ -34,7 +34,7 @@ The runtime is composed of five major layers:
 6. Each `TerminalCard` mounts xterm.js and asks the main process to spawn a PTY.
 7. Input from xterm.js is forwarded to the PTY over IPC.
 8. Output from the PTY is streamed back to the card over IPC.
-9. Layout, saved-workspace, and theme changes are persisted through `electron-store`.
+9. Layout, saved-workspace, workspace-theme, and per-window theme changes are persisted through `electron-store`.
 10. Preference and custom-theme changes are detected in the main process and pushed back to the renderer over a lightweight config-change event.
 11. Packaged builds load the bundled renderer based on `app.isPackaged` rather than environment variables.
 
@@ -50,7 +50,7 @@ This directory contains the Electron main process and preload bridge.
   - selects and spawns shell processes with `node-pty`
   - owns the PTY session map
   - forwards PTY output and exit events to the renderer
-  - persists saved workspaces, layout snapshots, and selected theme
+  - persists saved workspaces, layout snapshots, selected workspace theme, and per-window theme overrides
   - creates and watches `preferences.json` plus the custom theme directory
   - defines the native application menu
 - `preload.ts`
@@ -66,7 +66,8 @@ This directory contains the UI and renderer-side app state.
   - workspace initialization
   - saved-workspace sidebar and dialog flows
   - grid layout configuration
-  - theme selection
+  - workspace theme selection
+  - per-window theme resolution
   - preference loading
   - custom theme loading
   - minimized-session dock
@@ -77,11 +78,13 @@ This directory contains the UI and renderer-side app state.
   - terminal resizing
   - clipboard shortcuts and paste behavior
   - title editing
+  - per-card theme selection and inherit behavior
+  - card color identity affordances
   - card window controls
 - `components/ThemePicker.tsx`
   - theme dropdown UI
 - `store/index.ts`
-  - Zustand store for sessions, theme, active state, layout, and workspace snapshot restoration
+  - Zustand store for sessions, workspace theme, active state, layout, and workspace snapshot restoration
 - `themes/index.ts`
   - built-in theme catalog
   - default terminal preference values
@@ -177,7 +180,7 @@ Sorbet uses two persistence paths:
   - `preferences.json`
   - `themes/*.json`
 
-The preferences file is intentionally human-editable and includes an ignored `_template` section with inline guidance. The custom theme directory is watched and valid theme files are added to the renderer theme list automatically.
+The preferences file is intentionally human-editable and includes an ignored `_template` section with inline guidance. The custom theme directory is watched and valid theme files are added to the renderer theme list automatically. Workspace snapshots carry the selected workspace theme plus any session-level `themeId` overrides.
 
 ## Preload Bridge Design
 
@@ -232,7 +235,8 @@ Key responsibilities:
 - managing the grid width for `react-grid-layout`
 - autosaving layout changes
 - autosaving the current workspace snapshot
-- handling theme changes
+- handling workspace theme changes
+- resolving per-window theme overrides against the available theme catalog
 - binding `Cmd/Ctrl+T` for new sessions
 - rendering the workspace sidebar and naming dialog
 - rendering the minimized-session dock
@@ -261,8 +265,9 @@ Responsibilities include:
 - writing PTY output back into xterm
 - reacting to terminal title updates
 - resizing the PTY when the card changes size
-- updating terminal font and theme options from preferences
+- updating terminal font and resolved theme options from preferences
 - supporting copy/paste shortcuts and middle-click paste
+- handling per-card theme menu state and inherit-from-workspace behavior
 - killing the PTY on unmount
 
 One important implementation detail: PTY creation is intentionally separated from preference, workspace, and clipboard behavior updates so terminal sessions are not torn down by unrelated UI state changes.
@@ -300,6 +305,7 @@ The Zustand store in `src/renderer/store/index.ts` is the authoritative renderer
 - Minimized sessions stay in state but are omitted from the grid.
 - Maximized sessions temporarily replace the grid layout with a single item.
 - Pinned sessions stay in state and mark their grid items as non-draggable and non-resizable.
+- Sessions can optionally store a `themeId`; if absent, the card inherits the current workspace theme.
 
 ## UI Layout Model
 
@@ -325,6 +331,11 @@ The card canvas uses `react-grid-layout`.
 
 Themes are defined as plain objects in `src/renderer/themes/index.ts`.
 
+The renderer applies themes at two levels:
+
+- a workspace-level `themeId` that controls the app chrome and acts as the default card theme
+- an optional session-level `themeId` override that lets a single terminal opt into a different theme
+
 ### Built-in themes
 
 `1.0.0` ships with:
@@ -339,7 +350,7 @@ Themes are defined as plain objects in `src/renderer/themes/index.ts`.
 
 ### Custom themes
 
-Custom themes are plain JSON files placed in the user theme directory. The main process validates them structurally and the renderer merges them after the built-in theme list.
+Custom themes are plain JSON files placed in the user theme directory. The main process validates them structurally and the renderer merges them after the built-in theme list. Once loaded, they can be used as either workspace themes or per-window overrides.
 
 ## Clipboard Model
 
