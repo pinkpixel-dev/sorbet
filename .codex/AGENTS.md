@@ -13,6 +13,7 @@
 - Always produce modern, elegant, and stylized solutions — avoid outdated or basic implementations.
 
 **Important:** Do NOT change files unless you fully understand the project structure and intent.
+
 **Important:** Always update all documentation files - README.md, CHANGELOG.md, OVERVIEW.md, ROADMAP.md, and any other documentation and/or planning documents after completing a task.
 
 ## Brand
