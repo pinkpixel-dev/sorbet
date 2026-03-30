@@ -53,7 +53,7 @@ When evaluating roadmap items, prioritize work that supports these goals:
 
 ## Near-Term Priorities
 
-These items are the strongest candidates for the next phase because they extend the existing product model naturally and have high user value.
+These items are the strongest candidates for the next phase because they deepen the existing terminal workspace before introducing heavier new card types.
 
 ### 1. Saved Workspaces and Layout Presets
 
@@ -125,11 +125,100 @@ Why it matters:
 - makes it easier to recognize environments at a glance
 - fits naturally with Sorbet’s existing theming system
 
-## Mid-Term Expansion
+### 5. Session Metadata and Status
+
+Improve at-a-glance understanding of each card.
+
+Potential scope:
+
+- activity indicators
+- unread output markers
+- shell or environment badge
+- current working directory display
+- status-based color accents
+
+Why it matters:
+
+- makes busy workspaces easier to supervise
+- helps users track agent activity without constantly focusing each terminal
+- strengthens the workspace model without adding major structural complexity
+
+### 6. Commands and Command Palette
+
+A command palette would make a lot of roadmap functionality easier to access.
+
+Potential scope:
+
+- create or restore workspace
+- change theme
+- open browser, file explorer, or editor window
+- run workspace actions without hunting through menus
+
+Why it matters:
+
+- gives Sorbet a fast control surface as features grow
+- reduces menu hunting and keeps the canvas feeling lightweight
+- creates a clean entry point for both current and future workspace actions
+
+## Workflow Expansion
+
+These items build on the core workspace model so Sorbet becomes more repeatable, project-aware, and useful for supervising longer-running workflows.
+
+### 7. Workspace Templates
+
+Templates could create predefined layouts for common tasks such as:
+
+- full-stack web development
+- server monitoring
+- debugging and logs
+- documentation writing
+
+Why it matters:
+
+- makes onboarding and repeatability much stronger
+- helps users benefit from saved workspaces without setting everything up from scratch
+- creates a bridge between persistence and more advanced workflow automation
+
+### 8. Project-Aware Workspaces
+
+Sorbet could detect or associate a workspace with a folder or repository.
+
+Potential directions:
+
+- remember the last workspace used for a given project path
+- reopen project-specific terminals in the correct working directory
+- suggest matching saved layouts when a folder is opened
+- restore the mix of agent terminals, file views, and supporting windows used for that project
+
+Why it matters:
+
+- reduces friction when returning to active repositories
+- makes saved workspaces feel contextual rather than generic
+- reinforces Sorbet as a project command center instead of a one-off layout tool
+
+### 9. Workspace Actions and Startup Scripts
+
+Let saved workspaces optionally define startup behavior.
+
+Examples:
+
+- open a set of terminals in specific directories
+- run common boot commands
+- open a localhost URL in a browser card
+- restore a docs or notes file in an editor card
+- reopen a file tree or changed-file view used to supervise agent output
+
+Why it matters:
+
+- makes saved workspaces operational, not just visual
+- is especially compelling for repeatable project setups and agent-driven flows
+- compounds the value of persistence, templates, and project-aware behavior
+
+## Mixed Window Types
 
 These items broaden Sorbet from a terminal canvas into a more complete workspace for agent-assisted development and computer use.
 
-### 5. Browser Windows in the Workspace
+### 10. Browser Windows in the Workspace
 
 Allow browser windows to live on the same canvas alongside terminal windows.
 
@@ -152,7 +241,7 @@ Notes:
 - This feature needs careful handling around security boundaries, permissions, and navigation rules.
 - It may be best to start with a constrained internal browser experience rather than a fully general web browser.
 
-### 6. Filesystem Windows
+### 11. Filesystem Windows
 
 Add file explorer windows so directories can be opened and browsed inside the workspace.
 
@@ -172,7 +261,7 @@ Why it matters:
 - makes it easier to review files touched by CLI agents without leaving the workspace
 - helps users stay oriented in a repository while several agent sessions are active at once
 
-### 7. Text Editor Windows
+### 12. Text Editor Windows
 
 Allow files to be opened in lightweight editor or file-view windows within the workspace.
 
@@ -199,42 +288,36 @@ Notes:
 
 ## Longer-Term Opportunities
 
-These features are promising, but are best pursued after the persistence and multi-window foundation is stronger.
+These features are promising, but are best pursued after the persistence, workflow, and mixed-window foundation is stronger.
 
-### Workspace Templates
+### 13. Search Across the Workspace
 
-Templates could create predefined layouts for common tasks such as:
+Search could eventually span:
 
-- full-stack web development
-- server monitoring
-- debugging and logs
-- documentation writing
+- saved workspaces
+- open files
+- directory cards
+- terminal titles and metadata
 
-This would make onboarding and repeatability much stronger.
+Why it matters:
 
-### Project-Aware Workspaces
+- helps users find context quickly once workspaces grow richer
+- becomes more valuable as files, browser views, and metadata enter the canvas
+- supports agent supervision by making generated output easier to rediscover
 
-Sorbet could detect or associate a workspace with a folder or repository.
+### 14. Environment Labels
 
-Potential directions:
+Allow users to tag windows as `dev`, `staging`, `prod`, `docs`, `logs`, or custom labels.
 
-- remember the last workspace used for a given project path
-- reopen project-specific terminals in the correct working directory
-- suggest matching saved layouts when a folder is opened
-- restore the mix of agent terminals, file views, and supporting windows used for that project
+This would pair nicely with colored borders or dots and make risky contexts easier to recognize.
 
-### Commands and Command Palette
+### 15. Workspace Notes
 
-A command palette would make a lot of roadmap functionality easier to access.
+Add a lightweight notes card for scratch text, TODOs, or runbook reminders.
 
-Potential scope:
+This could be simpler and more focused than a full editor window while still being very useful.
 
-- create or restore workspace
-- change theme
-- open browser, file explorer, or editor window
-- run workspace actions without hunting through menus
-
-### Split and Snap Assist
+### 16. Split and Snap Assist
 
 Today Sorbet is intentionally freeform, but optional layout assistance could improve usability.
 
@@ -245,66 +328,7 @@ Potential scope:
 - distribute windows evenly
 - save these arrangements as templates
 
-### Session Metadata and Status
-
-Improve at-a-glance understanding of each card.
-
-Potential scope:
-
-- activity indicators
-- unread output markers
-- shell or environment badge
-- current working directory display
-- status-based color accents
-
-### Search Across the Workspace
-
-Search could eventually span:
-
-- saved workspaces
-- open files
-- directory cards
-- terminal titles and metadata
-
-## Suggested Future Features
-
-These are additional ideas that fit Sorbet’s direction and may be worth exploring.
-
-### Workspace Actions and Startup Scripts
-
-Let saved workspaces optionally define startup behavior.
-
-Examples:
-
-- open a set of terminals in specific directories
-- run common boot commands
-- open a localhost URL in a browser card
-- restore a docs or notes file in an editor card
-- reopen a file tree or changed-file view used to supervise agent output
-
-This would make Sorbet especially compelling for repeatable project setups.
-
-### Environment Labels
-
-Allow users to tag windows as `dev`, `staging`, `prod`, `docs`, `logs`, or custom labels.
-
-This would pair nicely with colored borders or dots and make risky contexts easier to recognize.
-
-### Workspace Notes
-
-Add a lightweight notes card for scratch text, TODOs, or runbook reminders.
-
-This could be simpler and more focused than a full editor window while still being very useful.
-
-### Multi-Monitor and Window Sets
-
-Over time, Sorbet could support larger workspace orchestration:
-
-- detach groups of cards into separate native windows
-- restore layouts across multiple displays
-- keep related contexts together across monitors
-
-### Import and Export
+### 17. Import and Export
 
 Saved workspaces, themes, and preferences could become portable.
 
@@ -314,19 +338,24 @@ Potential scope:
 - share layout presets between teammates
 - import workspace packs for projects or templates
 
+### 18. Multi-Monitor and Window Sets
+
+Over time, Sorbet could support larger workspace orchestration:
+
+- detach groups of cards into separate native windows
+- restore layouts across multiple displays
+- keep related contexts together across monitors
+
 ## Recommended Priority Order
 
-If the goal is to keep momentum high while compounding value cleanly, this is a sensible implementation sequence:
+If the goal is to keep momentum high while compounding value cleanly, the best implementation sequence is:
 
-1. saved workspaces and layout presets
-2. sidebar for saved workspaces
-3. window pinning and layout locking
-4. per-window themes and color identity
-5. browser windows
-6. filesystem windows
-7. text editor windows
+1. persistence and organization foundations: saved workspaces, sidebar, pinning, per-window identity, and session metadata
+2. control and repeatability: command palette, templates, project-aware workspaces, and startup actions
+3. mixed card types: browser, filesystem, and lightweight editor windows
+4. quality-of-life expansion: search, labels, notes, snap assist, import/export, and multi-monitor support
 
-This order strengthens the core product before expanding into broader workspace types.
+This order strengthens the core product first, then makes it more repeatable, and only after that broadens Sorbet into a richer multi-surface workspace.
 
 ## Open Product Questions
 
@@ -340,4 +369,4 @@ These decisions will shape implementation details:
 
 ## Summary
 
-The strongest next step for `Sorbet` is to deepen the workspace concept before broadening it. Saved workspaces, a sidebar, pinning, and per-window identity would make the existing terminal canvas much more powerful. Once that foundation is solid, browser, filesystem, and editor windows can expand Sorbet into a flexible control center for CLI-agent workflows without losing its original character.
+The strongest next step for `Sorbet` is to deepen the workspace concept before broadening it. Saved workspaces, a sidebar, pinning, per-window identity, metadata, and a command palette would make the existing terminal canvas substantially more capable. From there, templates, project-aware behavior, and startup actions can turn Sorbet into a repeatable workflow tool. Once that foundation is solid, browser, filesystem, and editor windows can expand it into a flexible control center for CLI-agent workflows without losing its original character.
