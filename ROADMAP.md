@@ -4,6 +4,29 @@ This document outlines a practical forward-looking roadmap for `Sorbet` after `v
 
 It is intended to guide product direction, help prioritize development, and give contributors a shared view of where the workspace experience can go next. The roadmap is aspirational rather than a strict promise, and priorities may shift based on user feedback, implementation complexity, and platform constraints.
 
+## Implementation Checklist
+
+Ordered from the strongest foundational work to the heavier expansion features:
+
+- [ ] Saved workspaces and layout presets
+- [ ] Sidebar for saved workspaces
+- [ ] Window pinning and layout locking
+- [ ] Per-window themes and color identity
+- [ ] Session metadata and status
+- [ ] Commands and command palette
+- [ ] Workspace templates
+- [ ] Project-aware workspaces
+- [ ] Workspace actions and startup scripts
+- [ ] Browser windows in the workspace
+- [ ] Filesystem windows
+- [ ] Text editor windows
+- [ ] Search across the workspace
+- [ ] Environment labels
+- [ ] Workspace notes
+- [ ] Split and snap assist
+- [ ] Import and export
+- [ ] Multi-monitor and window sets
+
 ## Product Direction
 
 `Sorbet` already provides a strong foundation as a terminal workspace instead of a traditional tabbed terminal. The next stage is to make that workspace feel more intentional, more persistent, and more flexible across different kinds of developer activity.
