@@ -43,6 +43,8 @@ function spawnChild(label, script, env) {
     stdio: 'inherit',
   })
 
+  child.__sorbetLabel = label
+
   child.on('error', (error) => {
     console.error(`[${label}] failed to start:`, error)
   })
@@ -88,15 +90,23 @@ async function main() {
     child.on('exit', (code, signal) => {
       if (shuttingDown) return
 
+      const label = child.__sorbetLabel || 'unknown'
+
       if (signal) {
-        console.log(`A dev process exited due to signal ${signal}`)
+        console.log(`${label} exited due to signal ${signal}`)
         shutdown('SIGTERM')
         process.exit(1)
         return
       }
 
+      if (label === 'electron') {
+        shutdown('SIGTERM')
+        process.exit(code ?? 0)
+        return
+      }
+
       if (code && code !== 0) {
-        console.error(`A dev process exited with code ${code}`)
+        console.error(`${label} exited with code ${code}`)
         shutdown('SIGTERM')
         process.exit(code)
       }
