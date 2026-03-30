@@ -1,9 +1,6 @@
 ---
 name: dependency-upgrade
 description: "Master major dependency version upgrades, compatibility analysis, staged upgrade strategies, and comprehensive testing approaches."
-risk: critical
-source: community
-date_added: "2026-02-27"
 ---
 
 # Dependency Upgrade

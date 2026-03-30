@@ -1,5 +1,5 @@
 ---
-name: electron
+name: electron-development
 description: Provides comprehensive guidance for Electron framework including main process, renderer process, IPC communication, window management, and desktop app development. Use when the user asks about Electron, needs to create desktop applications, implement Electron features, or build cross-platform desktop apps.
 license: Complete terms in LICENSE.txt
 ---

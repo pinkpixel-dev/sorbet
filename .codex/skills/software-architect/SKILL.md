@@ -1,9 +1,6 @@
 ---
 name: software-architect
-description: Skilled software architect specializing in modern architectural
-  patterns, clean architecture, microservices, event-driven systems, and DDD.
-  Reviews system designs and code changes for architectural integrity,
-  scalability, and maintainability.
+description: Skilled software architect specializing in modern architectural patterns, clean architecture, microservices, event-driven systems, and DDD. Reviews system designs and code changes for architectural integrity, scalability, and maintainability.
 ---
 
 ## Use this skill when
