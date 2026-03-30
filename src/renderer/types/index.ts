@@ -59,6 +59,7 @@ export interface TerminalSession {
   createdAt: number
   isMinimized?: boolean
   isPinned?: boolean
+  themeId?: string
 }
 
 export interface WorkspaceSnapshot {

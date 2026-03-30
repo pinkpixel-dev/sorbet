@@ -140,6 +140,7 @@ function normalizeSession(raw) {
         createdAt: typeof session.createdAt === 'number' ? session.createdAt : Date.now(),
         isMinimized: typeof session.isMinimized === 'boolean' ? session.isMinimized : false,
         isPinned: typeof session.isPinned === 'boolean' ? session.isPinned : false,
+        themeId: typeof session.themeId === 'string' && session.themeId.trim() ? session.themeId : undefined,
     };
 }
 function normalizeWorkspaceSnapshot(raw, fallbackThemeId) {
@@ -160,6 +161,7 @@ function normalizeWorkspaceSnapshot(raw, fallbackThemeId) {
             createdAt: Date.now(),
             isMinimized: false,
             isPinned: false,
+            themeId: undefined,
         });
     });
     return {
@@ -227,6 +229,7 @@ function readWorkspaceState() {
                     createdAt: now,
                     isMinimized: false,
                     isPinned: false,
+                    themeId: undefined,
                 })),
                 themeId: fallbackThemeId,
             }, fallbackThemeId),

@@ -87,6 +87,7 @@ interface StoredSession {
   createdAt: number
   isMinimized?: boolean
   isPinned?: boolean
+  themeId?: string
 }
 
 interface WorkspaceSnapshot {
@@ -160,6 +161,7 @@ function normalizeSession(raw: unknown): StoredSession | null {
     createdAt: typeof session.createdAt === 'number' ? session.createdAt : Date.now(),
     isMinimized: typeof session.isMinimized === 'boolean' ? session.isMinimized : false,
     isPinned: typeof session.isPinned === 'boolean' ? session.isPinned : false,
+    themeId: typeof session.themeId === 'string' && session.themeId.trim() ? session.themeId : undefined,
   }
 }
 
@@ -183,6 +185,7 @@ function normalizeWorkspaceSnapshot(raw: unknown, fallbackThemeId: string): Work
         createdAt: Date.now(),
         isMinimized: false,
         isPinned: false,
+        themeId: undefined,
       }
     )
   })
@@ -262,6 +265,7 @@ function readWorkspaceState(): WorkspaceState {
             createdAt: now,
             isMinimized: false,
             isPinned: false,
+            themeId: undefined,
           })),
           themeId: fallbackThemeId,
         },

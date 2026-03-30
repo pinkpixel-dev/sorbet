@@ -123,6 +123,11 @@
   background: #111113;
 }
 
+.terminal-identity-strip {
+  height: 2px;
+  flex-shrink: 0;
+}
+
 @media (max-width: 900px) {
   .workspace-sidebar {
     width: 240px !important;

@@ -75,6 +75,7 @@ export const useSorbetStore = create<SorbetStore>((set) => ({
         ...session,
         isAlive: false,
         isPinned: session.isPinned ?? false,
+        themeId: session.themeId,
       })),
       activeSessionId: snapshot.sessions.find((session) => !session.isMinimized)?.id ?? snapshot.layout[0]?.i ?? null,
       maximizedSessionId: null,

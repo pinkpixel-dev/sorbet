@@ -81,6 +81,7 @@ export default function App() {
     addSession,
     setActiveSession,
     updateLayout,
+    updateSession,
     setTheme,
     restoreWorkspace,
     toggleMinimizeSession,
@@ -147,6 +148,7 @@ export default function App() {
       createdAt: Date.now(),
       isMinimized: false,
       isPinned: false,
+      themeId: undefined,
     }
     addSession(session, layoutItem)
   }, [addSession])
@@ -657,15 +659,21 @@ export default function App() {
                 <TerminalCard
                   key={session.id}
                   sessionId={session.id}
-                  theme={theme}
+                  theme={themesById[session.themeId || ''] || theme}
+                  workspaceTheme={theme}
+                  themes={availableThemes}
                   preferences={preferences}
                   isActive={activeSessionId === session.id}
                   isMaximized={maximizedSessionId === session.id}
                   isPinned={Boolean(session.isPinned)}
+                  isUsingCustomTheme={Boolean(session.themeId && themesById[session.themeId])}
                   onActivate={() => setActiveSession(session.id)}
                   onMinimize={() => toggleMinimizeSession(session.id)}
                   onMaximize={() => toggleMaximizeSession(session.id)}
                   onTogglePin={() => togglePinSession(session.id)}
+                  onThemeChange={(nextThemeId) =>
+                    updateSession(session.id, { themeId: nextThemeId || undefined })
+                  }
                 />
               </div>
             ))}
@@ -687,7 +695,7 @@ export default function App() {
               className="terminal-dock-item px-3 py-1.5 rounded-md text-xs transition-colors"
               style={{
                 background: '#18181b',
-                border: `1px solid ${theme.accent}33`,
+                border: `1px solid ${(themesById[session.themeId || ''] || theme).accent}33`,
                 color: '#d4d4d8',
               }}
               onClick={() => {

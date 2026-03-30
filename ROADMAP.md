@@ -11,7 +11,7 @@ Ordered from the strongest foundational work to the heavier expansion features:
 - [x] Saved workspaces and layout presets
 - [x] Sidebar for saved workspaces
 - [x] Window pinning and layout locking
-- [ ] Per-window themes and color identity
+- [x] Per-window themes and color identity
 - [ ] Session metadata and status
 - [ ] Commands and command palette
 - [ ] Workspace templates

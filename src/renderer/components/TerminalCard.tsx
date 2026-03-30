@@ -9,27 +9,35 @@ import '@xterm/xterm/css/xterm.css'
 interface TerminalCardProps {
   sessionId: string
   theme: Theme
+  workspaceTheme: Theme
+  themes: Theme[]
   preferences: TerminalPreferences
   isActive: boolean
   isMaximized: boolean
   isPinned: boolean
+  isUsingCustomTheme: boolean
   onActivate: () => void
   onMinimize: () => void
   onMaximize: () => void
   onTogglePin: () => void
+  onThemeChange: (themeId?: string) => void
 }
 
 export function TerminalCard({
   sessionId,
   theme,
+  workspaceTheme,
+  themes,
   preferences,
   isActive,
   isMaximized,
   isPinned,
+  isUsingCustomTheme,
   onActivate,
   onMinimize,
   onMaximize,
   onTogglePin,
+  onThemeChange,
 }: TerminalCardProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
@@ -42,7 +50,9 @@ export function TerminalCard({
   const { updateSession, removeSession, sessions } = useSorbetStore()
   const session = sessions.find((item) => item.id === sessionId)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
+  const themeMenuRef = useRef<HTMLDivElement>(null)
   const displayTitle = useMemo(() => session?.title || 'Terminal', [session?.title])
 
   const matchesShortcut = useCallback((event: KeyboardEvent, shortcut: string) => {
@@ -347,6 +357,17 @@ export function TerminalCard({
     }
   }, [displayTitle, isEditingTitle])
 
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (themeMenuRef.current && !themeMenuRef.current.contains(event.target as Node)) {
+        setIsThemeMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [])
+
   const handleClose = (e: React.MouseEvent) => {
     e.stopPropagation()
     window.sorbet.pty.kill(sessionId)
@@ -387,6 +408,19 @@ export function TerminalCard({
     onTogglePin()
   }
 
+  const handleThemeButtonClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setIsThemeMenuOpen((open) => !open)
+  }
+
+  const handleSelectTheme = (nextThemeId?: string) => {
+    onThemeChange(nextThemeId)
+    setIsThemeMenuOpen(false)
+    requestAnimationFrame(() => {
+      focusTerminal()
+    })
+  }
+
   return (
     <div
       className="group flex flex-col w-full h-full rounded-xl overflow-hidden"
@@ -399,6 +433,8 @@ export function TerminalCard({
       onClick={focusTerminal}
       onMouseDown={focusTerminal}
     >
+      <div className="terminal-identity-strip" style={{ background: theme.accent }} />
+
       {/* Title bar */}
       <div
         className={`grid items-center px-3 flex-shrink-0 select-none cursor-default ${isPinned ? '' : 'drag-handle'}`}
@@ -436,49 +472,123 @@ export function TerminalCard({
 
         {/* Session title */}
         <div className="flex items-center justify-center min-w-0">
-          {isEditingTitle ? (
-            <input
-              className="title-editor pointer-events-auto w-full max-w-[220px] px-2 py-0.5 rounded text-xs text-center outline-none"
-              style={{
-                background: '#18181b',
-                border: `1px solid ${theme.accent}55`,
-                color: theme.foreground,
-              }}
-              value={draftTitle}
-              onChange={(e) => setDraftTitle(e.currentTarget.value)}
-              onBlur={handleTitleSubmit}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  handleTitleSubmit()
-                }
-                if (e.key === 'Escape') {
-                  e.preventDefault()
-                  setDraftTitle(displayTitle)
-                  setIsEditingTitle(false)
-                }
-              }}
-              onMouseDown={(e) => e.stopPropagation()}
-              autoFocus
+          <div className="flex items-center justify-center gap-2 min-w-0 max-w-[220px]">
+            <span
+              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+              style={{ background: theme.accent }}
+              title={isUsingCustomTheme ? `${theme.name} theme` : `Inheriting ${workspaceTheme.name}`}
             />
-          ) : (
-            <div
-              className="max-w-[220px] truncate px-2 text-xs font-medium text-center"
-              style={{ color: isActive ? theme.foreground : '#52525b' }}
-              onDoubleClick={(e) => {
-                e.stopPropagation()
-                setDraftTitle(displayTitle)
-                setIsEditingTitle(true)
-              }}
-              title="Double-click to rename terminal"
-            >
-              {displayTitle}
-            </div>
-          )}
+            {isEditingTitle ? (
+              <input
+                className="title-editor pointer-events-auto w-full px-2 py-0.5 rounded text-xs text-center outline-none"
+                style={{
+                  background: '#18181b',
+                  border: `1px solid ${theme.accent}55`,
+                  color: theme.foreground,
+                }}
+                value={draftTitle}
+                onChange={(e) => setDraftTitle(e.currentTarget.value)}
+                onBlur={handleTitleSubmit}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleTitleSubmit()
+                  }
+                  if (e.key === 'Escape') {
+                    e.preventDefault()
+                    setDraftTitle(displayTitle)
+                    setIsEditingTitle(false)
+                  }
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                autoFocus
+              />
+            ) : (
+              <div
+                className="truncate px-1 text-xs font-medium text-center"
+                style={{ color: isActive ? theme.foreground : '#a1a1aa' }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation()
+                  setDraftTitle(displayTitle)
+                  setIsEditingTitle(true)
+                }}
+                title="Double-click to rename terminal"
+              >
+                {displayTitle}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Active indicator */}
         <div className="flex items-center justify-end gap-2">
+          <div ref={themeMenuRef} className="relative">
+            <button
+              className="window-action flex items-center justify-center w-5 h-5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{
+                color: isUsingCustomTheme ? theme.accent : isActive ? theme.foreground : '#71717a',
+                background: isUsingCustomTheme ? theme.accent + '1a' : isActive ? '#18181b' : 'transparent',
+              }}
+              onClick={handleThemeButtonClick}
+              onMouseDown={(e) => e.stopPropagation()}
+              title={isUsingCustomTheme ? `Window theme: ${theme.name}` : 'Inherit workspace theme'}
+            >
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path
+                  d="M8 2.2a4.8 4.8 0 1 0 4.8 4.8c0-.5-.1-1-.2-1.4A2.8 2.8 0 0 1 9.9 3a3 3 0 0 1-1.9-.8Z"
+                  stroke="currentColor"
+                  strokeWidth="1.15"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+
+            {isThemeMenuOpen && (
+              <div
+                className="absolute right-0 top-full mt-1 z-50 rounded-xl overflow-hidden py-1"
+                style={{
+                  background: '#18181b',
+                  border: '1px solid #27272a',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                  minWidth: '188px',
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <button
+                  className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-left transition-colors"
+                  style={{
+                    color: !isUsingCustomTheme ? '#f4f4f5' : '#a1a1aa',
+                    background: !isUsingCustomTheme ? '#27272a' : 'transparent',
+                  }}
+                  onClick={() => handleSelectTheme(undefined)}
+                >
+                  <span
+                    className="w-3 h-3 rounded-full flex-shrink-0"
+                    style={{ background: workspaceTheme.accent }}
+                  />
+                  Inherit {workspaceTheme.name}
+                </button>
+                {themes.map((option) => (
+                  <button
+                    key={option.id}
+                    className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-left transition-colors"
+                    style={{
+                      color: session?.themeId === option.id ? '#f4f4f5' : '#a1a1aa',
+                      background: session?.themeId === option.id ? '#27272a' : 'transparent',
+                    }}
+                    onClick={() => handleSelectTheme(option.id)}
+                  >
+                    <span
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ background: option.accent }}
+                    />
+                    {option.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
             className="window-action flex items-center justify-center w-5 h-5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
             style={{
@@ -527,19 +637,11 @@ export function TerminalCard({
               </svg>
             </button>
           )}
-          {isActive && (
-            <div
-              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-              style={{ background: theme.accent }}
-            />
-          )}
-          {!isActive && isPinned && (
-            <div
-              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-              style={{ background: theme.accent, opacity: 0.7 }}
-              title="Pinned"
-            />
-          )}
+          <div
+            className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+            style={{ background: theme.accent, opacity: isActive || isUsingCustomTheme ? 1 : 0.65 }}
+            title={isPinned ? 'Pinned' : theme.name}
+          />
         </div>
       </div>
 
