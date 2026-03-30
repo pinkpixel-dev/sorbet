@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+const devPort = Number(process.env.SORBET_DEV_PORT || '38173')
 
 export default defineConfig({
   plugins: [react()],
@@ -19,7 +20,7 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
-    port: 5173,
+    port: devPort,
     strictPort: true,
   },
 })

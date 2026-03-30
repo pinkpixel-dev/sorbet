@@ -14,12 +14,17 @@
 - Expanded workspace persistence from a single saved layout into a multi-workspace model
 - Restoring a workspace now preserves session metadata such as title, minimized state, and pinned state
 - Existing single-layout installs are migrated into a default saved workspace automatically
+- Upgraded core desktop and build dependencies, including Electron, Vite, and electron-builder, to clear known security advisories
+- Development startup now auto-selects an available high port for the Vite renderer instead of assuming `5173`
 
 ### Fixed
 
 - Workspace save and rename interactions that were unreliable when driven by native prompt dialogs
 - Blank-screen regression triggered by typing into the workspace naming dialog
 - Renderer state sync issues after workspace creation and rename flows
+- Black-screen development startup caused by Electron 41 preload/sandbox behavior changes
+- Dev-session failures caused by port collisions between multiple local applications
+- Linux development startup noise and hidden-window behavior that made Electron launch failures harder to diagnose
 
 ## 1.0.0 - 2026-03-21
 

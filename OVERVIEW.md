@@ -90,8 +90,11 @@ This directory contains the UI and renderer-side app state.
 
 ### Supporting files
 
-- `vite.config.ts`
+- `vite.config.mjs`
   - Vite configuration for the renderer build and dev server
+  - reads `SORBET_DEV_PORT` so Electron and Vite can share the same dev server address
+- `scripts/start-dev.cjs`
+  - development orchestrator that picks an available port, starts the renderer and TypeScript watchers, and then launches Electron with the same environment
 - `scripts/start-electron.cjs`
   - helper script that launches Electron with the correct environment in development
 - `scripts/generate-icons.sh`
@@ -125,12 +128,13 @@ The main window is created hidden and shown only after `ready-to-show`. This red
 
 - `contextIsolation: true`
 - `nodeIntegration: false`
+- `sandbox: false`
 - a preload script
 - a platform icon on Linux and Windows package builds
 
-That combination keeps the renderer sandboxed while still giving it a curated API surface.
+That combination keeps direct Node integration out of the renderer while preserving the preload bridge behavior Sorbet relies on under newer Electron releases.
 
-For `v1.0.0`, packaged builds use `app.isPackaged` to decide whether to load the local dev server or the bundled renderer assets. This avoids production builds accidentally trying to open `http://localhost:5173`.
+For `v1.0.0`, packaged builds use `app.isPackaged` to decide whether to load the active local dev server or the bundled renderer assets. In development, the shared dev-server port comes from `SORBET_DEV_PORT`, which prevents Electron and Vite from drifting out of sync when a default port is already occupied.
 
 ### PTY management
 
@@ -376,7 +380,7 @@ npm install
 ### Run locally
 
 ```bash
-npm start
+npm run dev
 ```
 
 ### Build
@@ -403,7 +407,8 @@ npm run dist:win
 
 - Renderer changes are served live by Vite.
 - Main-process changes are recompiled by `tsc --watch`.
+- The dev launcher selects a free localhost port and shares it with both Vite and Electron through `SORBET_DEV_PORT`.
 - Electron starts only after the renderer server and compiled main files are ready.
-- Closing the Electron window ends the full `npm start` session.
+- Closing the Electron window ends the full `npm run dev` session.
 - Linux release packaging emits `AppImage`, `deb`, and `rpm` artifacts into `release/`.
 - Windows installers are built as NSIS `.exe` packages through GitHub Actions.

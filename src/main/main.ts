@@ -22,6 +22,8 @@ const defaultPreferences = {
   pasteShortcut: 'CmdOrCtrl+Shift+V',
 }
 const preferencesTemplateVersion = 4
+const devServerPort = process.env.SORBET_DEV_PORT || '38173'
+const devServerUrl = `http://localhost:${devServerPort}`
 const themeTemplate = {
   id: 'custom-neon',
   name: 'Custom Neon',
@@ -52,8 +54,12 @@ const themeTemplate = {
 if (process.platform === 'linux') {
   app.disableHardwareAcceleration()
   app.commandLine.appendSwitch('disable-gpu')
+  app.commandLine.appendSwitch('disable-gpu-compositing')
   app.commandLine.appendSwitch('use-gl', 'swiftshader')
-  app.commandLine.appendSwitch('disable-features', 'Vulkan')
+  app.commandLine.appendSwitch(
+    'disable-features',
+    'AcceleratedVideoDecodeLinuxGL,VaapiVideoDecoder,Vulkan'
+  )
 }
 
 if (process.platform === 'win32') {
@@ -755,32 +761,72 @@ function buildAppMenu() {
 }
 
 function createWindow() {
+  const isMac = process.platform === 'darwin'
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 800,
     minHeight: 600,
     backgroundColor: '#09090b',
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 14, y: 14 },
+    ...(isMac
+      ? {
+          titleBarStyle: 'hiddenInset' as const,
+          trafficLightPosition: { x: 14, y: 14 },
+        }
+      : {}),
     icon: process.platform === 'darwin' ? undefined : getWindowIconPath(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
     },
     show: false,
   })
 
-  if (isDev) {
-    mainWindow.loadURL('http://localhost:5173')
-  } else {
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
-  }
+  const loadTarget = isDev
+    ? mainWindow.loadURL(devServerUrl)
+    : mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
+
+  void loadTarget.catch((error) => {
+    console.error('Failed to load renderer:', error)
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show()
+    }
+  })
 
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show()
   })
+
+  mainWindow.webContents.once('did-finish-load', () => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      mainWindow.show()
+    }
+  })
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (!isMainFrame) return
+
+    console.error(
+      `Renderer failed to load (${errorCode}): ${errorDescription} [${validatedURL}]`
+    )
+
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      mainWindow.show()
+    }
+  })
+
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('Renderer process gone:', details.reason)
+  })
+
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      mainWindow.show()
+    }
+  }, 1500)
 
   mainWindow.on('closed', () => {
     // Kill all PTY sessions when window closes

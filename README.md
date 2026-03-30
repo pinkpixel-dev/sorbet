@@ -116,7 +116,7 @@ When a new card is created, the renderer computes a layout position, adds a sess
 
 ## Requirements
 
-- Node.js 18 or newer
+- Node.js 20 or newer
 - npm 9+ recommended
 - Platform support depends on Electron and `node-pty`
 
@@ -169,7 +169,7 @@ The Windows installer is built separately in GitHub Actions as a `.exe` artifact
 Start the full development environment with:
 
 ```bash
-npm start
+npm run dev
 ```
 
 You can also launch the same flow with the project launcher:
@@ -186,25 +186,37 @@ npm link
 
 This launches:
 
-- the Vite dev server for the renderer on `http://localhost:5173`
+- the Vite dev server for the renderer on an automatically selected high localhost port
 - the TypeScript compiler in watch mode for the Electron main process
 - Electron after both the dev server and compiled main/preload output are ready
+
+Sorbet now prints the selected port at startup, for example `Using Sorbet dev port 38173`, and reuses that same value for both Vite and Electron during the session.
 
 When the Electron app window closes, the full dev session now exits automatically.
 
 You can also run the pieces separately if needed:
 
 ```bash
-npm run dev
+npm run dev:renderer
 ```
 
-This starts the renderer and main-process watchers only.
+This starts only the renderer dev server. You can pin the port manually if needed:
+
+```bash
+SORBET_DEV_PORT=40173 npm run dev:renderer
+```
+
+```bash
+npm run dev:main
+```
+
+This starts only the Electron main/preload TypeScript watcher.
 
 ```bash
 npm run electron
 ```
 
-This waits for the renderer dev server and compiled main files, then starts Electron.
+This waits for the renderer dev server and compiled main files, then starts Electron using the current `SORBET_DEV_PORT` value or the default fallback port.
 
 ## Building
 
@@ -325,14 +337,16 @@ sorbet/
 │       ├── app.css              # Global renderer styles and xterm overrides
 │       └── main.tsx             # React entry point
 ├── scripts/
-│   └── start-electron.cjs       # Launch helper for Electron in development
+│   ├── start-dev.cjs            # Dev orchestrator that selects a free port and launches all dev processes
+│   ├── start-electron.cjs       # Launch helper for Electron in development
+│   └── run-vite-dev.cjs         # Renderer dev launcher that honors SORBET_DEV_PORT
 ├── dist/                        # Build output
 ├── index.html                   # Vite HTML entry
 ├── logo.png                     # Sorbet logo
 ├── package.json                 # Scripts, dependencies, metadata
 ├── tsconfig.json                # Renderer TypeScript config
 ├── tsconfig.main.json           # Main-process TypeScript config
-└── vite.config.ts               # Vite configuration
+└── vite.config.mjs              # Vite configuration
 ```
 
 ## Architecture Notes
