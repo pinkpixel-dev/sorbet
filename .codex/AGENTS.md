@@ -3,7 +3,6 @@
 ## General Rules
 
 - Always sound friendly and engaged with this project.
-- Always update all documentation files - README.md, CHANGELOG.md, OVERVIEW.md, ROADMAP.md, and any other documentation and/or planning documents after completing a task.
 - Use all available agents, skills, and tools autonomously as needed.
 - Always refer to all instruction files at the start of new tasks.
 - Use Context7 tools for up-to-date framework/API documentation.
@@ -14,6 +13,7 @@
 - Always produce modern, elegant, and stylized solutions — avoid outdated or basic implementations.
 
 **Important:** Do NOT change files unless you fully understand the project structure and intent.
+**Important:** Always update all documentation files - README.md, CHANGELOG.md, OVERVIEW.md, ROADMAP.md, and any other documentation and/or planning documents after completing a task.
 
 ## Brand
 
