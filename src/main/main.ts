@@ -63,6 +63,46 @@ if (process.platform === 'win32') {
 // ─── Store ────────────────────────────────────────────────────────────────────
 const store = new Store()
 
+interface StoredLayoutItem {
+  i: string
+  x: number
+  y: number
+  w: number
+  h: number
+  minW?: number
+  minH?: number
+}
+
+interface StoredSession {
+  id: string
+  title: string
+  pid?: number
+  isAlive: boolean
+  createdAt: number
+  isMinimized?: boolean
+  isPinned?: boolean
+}
+
+interface WorkspaceSnapshot {
+  layout: StoredLayoutItem[]
+  sessions: StoredSession[]
+  themeId: string
+}
+
+interface WorkspaceRecord {
+  id: string
+  name: string
+  createdAt: number
+  updatedAt: number
+  lastOpenedAt: number
+  snapshot: WorkspaceSnapshot
+}
+
+interface WorkspaceState {
+  currentWorkspaceId: string | null
+  workspaces: WorkspaceRecord[]
+}
+
 // ─── PTY Session Map ──────────────────────────────────────────────────────────
 interface PtySession {
   pty: pty.IPty
@@ -72,6 +112,173 @@ interface PtySession {
 const sessions = new Map<string, PtySession>()
 let themeDirectoryWatcher: fs.FSWatcher | null = null
 let configChangedTimeout: NodeJS.Timeout | null = null
+
+function createId(prefix: string) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+function normalizeLayoutItem(raw: unknown): StoredLayoutItem | null {
+  if (!raw || typeof raw !== 'object') return null
+  const item = raw as Record<string, unknown>
+  if (
+    typeof item.i !== 'string' ||
+    typeof item.x !== 'number' ||
+    typeof item.y !== 'number' ||
+    typeof item.w !== 'number' ||
+    typeof item.h !== 'number'
+  ) {
+    return null
+  }
+
+  return {
+    i: item.i,
+    x: item.x,
+    y: item.y,
+    w: item.w,
+    h: item.h,
+    minW: typeof item.minW === 'number' ? item.minW : undefined,
+    minH: typeof item.minH === 'number' ? item.minH : undefined,
+  }
+}
+
+function normalizeSession(raw: unknown): StoredSession | null {
+  if (!raw || typeof raw !== 'object') return null
+  const session = raw as Record<string, unknown>
+  if (typeof session.id !== 'string') return null
+
+  return {
+    id: session.id,
+    title: typeof session.title === 'string' && session.title.trim() ? session.title : 'Terminal',
+    pid: typeof session.pid === 'number' ? session.pid : undefined,
+    isAlive: false,
+    createdAt: typeof session.createdAt === 'number' ? session.createdAt : Date.now(),
+    isMinimized: typeof session.isMinimized === 'boolean' ? session.isMinimized : false,
+    isPinned: typeof session.isPinned === 'boolean' ? session.isPinned : false,
+  }
+}
+
+function normalizeWorkspaceSnapshot(raw: unknown, fallbackThemeId: string): WorkspaceSnapshot {
+  const data = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  const layout = Array.isArray(data.layout)
+    ? data.layout.map(normalizeLayoutItem).filter((item): item is StoredLayoutItem => Boolean(item))
+    : []
+  const normalizedSessions = Array.isArray(data.sessions)
+    ? data.sessions.map(normalizeSession).filter((session): session is StoredSession => Boolean(session))
+    : []
+
+  const sessionsById = new Map(normalizedSessions.map((session) => [session.id, session]))
+  const sessions = layout.map((item) => {
+    const existing = sessionsById.get(item.i)
+    return (
+      existing || {
+        id: item.i,
+        title: 'Terminal',
+        isAlive: false,
+        createdAt: Date.now(),
+        isMinimized: false,
+        isPinned: false,
+      }
+    )
+  })
+
+  return {
+    layout,
+    sessions,
+    themeId:
+      typeof data.themeId === 'string' && data.themeId.trim()
+        ? data.themeId
+        : fallbackThemeId,
+  }
+}
+
+function normalizeWorkspaceRecord(raw: unknown, fallbackThemeId: string): WorkspaceRecord | null {
+  if (!raw || typeof raw !== 'object') return null
+  const item = raw as Record<string, unknown>
+  const now = Date.now()
+
+  if (typeof item.id !== 'string') return null
+
+  return {
+    id: item.id,
+    name: typeof item.name === 'string' && item.name.trim() ? item.name.trim() : 'Untitled Workspace',
+    createdAt: typeof item.createdAt === 'number' ? item.createdAt : now,
+    updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : now,
+    lastOpenedAt: typeof item.lastOpenedAt === 'number' ? item.lastOpenedAt : now,
+    snapshot: normalizeWorkspaceSnapshot(item.snapshot, fallbackThemeId),
+  }
+}
+
+function readWorkspaceState(): WorkspaceState {
+  const fallbackThemeId = typeof store.get('theme') === 'string' ? String(store.get('theme')) : defaultPreferences.defaultThemeId
+  const raw = store.get('workspaces')
+
+  if (raw && typeof raw === 'object') {
+    const data = raw as Record<string, unknown>
+    const workspaces = Array.isArray(data.workspaces)
+      ? data.workspaces
+          .map((item) => normalizeWorkspaceRecord(item, fallbackThemeId))
+          .filter((item): item is WorkspaceRecord => Boolean(item))
+      : []
+    const currentWorkspaceId =
+      typeof data.currentWorkspaceId === 'string' ? data.currentWorkspaceId : null
+
+    if (workspaces.length > 0) {
+      return {
+        currentWorkspaceId:
+          workspaces.some((workspace) => workspace.id === currentWorkspaceId)
+            ? currentWorkspaceId
+            : workspaces[0].id,
+        workspaces,
+      }
+    }
+  }
+
+  const legacyLayoutRaw = store.get('layout')
+  const legacyLayout = Array.isArray(legacyLayoutRaw)
+    ? legacyLayoutRaw.map(normalizeLayoutItem).filter((item): item is StoredLayoutItem => Boolean(item))
+    : []
+
+  if (legacyLayout.length > 0) {
+    const now = Date.now()
+    const migratedWorkspace: WorkspaceRecord = {
+      id: createId('ws'),
+      name: 'Current Workspace',
+      createdAt: now,
+      updatedAt: now,
+      lastOpenedAt: now,
+      snapshot: normalizeWorkspaceSnapshot(
+        {
+          layout: legacyLayout,
+          sessions: legacyLayout.map((item) => ({
+            id: item.i,
+            title: 'Terminal',
+            isAlive: false,
+            createdAt: now,
+            isMinimized: false,
+            isPinned: false,
+          })),
+          themeId: fallbackThemeId,
+        },
+        fallbackThemeId
+      ),
+    }
+    const nextState = {
+      currentWorkspaceId: migratedWorkspace.id,
+      workspaces: [migratedWorkspace],
+    }
+    writeWorkspaceState(nextState)
+    return nextState
+  }
+
+  return {
+    currentWorkspaceId: null,
+    workspaces: [],
+  }
+}
+
+function writeWorkspaceState(state: WorkspaceState) {
+  store.set('workspaces', state)
+}
 
 function resolveShell(): { command: string; args: string[] } {
   if (process.platform === 'win32') {
@@ -662,7 +869,11 @@ ipcMain.handle('pty:kill', (_event, sessionId: string) => {
 
 // Get saved layout from store
 ipcMain.handle('store:getLayout', () => {
-  return store.get('layout', null)
+  const workspaceState = readWorkspaceState()
+  const current = workspaceState.workspaces.find(
+    (workspace) => workspace.id === workspaceState.currentWorkspaceId
+  )
+  return current?.snapshot.layout ?? store.get('layout', null)
 })
 
 // Save layout to store
@@ -681,6 +892,126 @@ ipcMain.handle('store:getTheme', () => {
 ipcMain.handle('store:saveTheme', (_event, theme: string) => {
   store.set('theme', theme)
   return { success: true }
+})
+
+ipcMain.handle('store:getWorkspaces', () => {
+  return readWorkspaceState()
+})
+
+ipcMain.handle('store:createWorkspace', (_event, name: string, snapshot: unknown, makeCurrent = true) => {
+  const state = readWorkspaceState()
+  const now = Date.now()
+  const workspace: WorkspaceRecord = {
+    id: createId('ws'),
+    name: typeof name === 'string' && name.trim() ? name.trim() : `Workspace ${state.workspaces.length + 1}`,
+    createdAt: now,
+    updatedAt: now,
+    lastOpenedAt: now,
+    snapshot: normalizeWorkspaceSnapshot(snapshot, typeof store.get('theme') === 'string' ? String(store.get('theme')) : defaultPreferences.defaultThemeId),
+  }
+
+  const nextState: WorkspaceState = {
+    currentWorkspaceId: makeCurrent ? workspace.id : state.currentWorkspaceId,
+    workspaces: [...state.workspaces, workspace],
+  }
+
+  writeWorkspaceState(nextState)
+  return workspace
+})
+
+ipcMain.handle('store:updateWorkspace', (_event, id: string, updates: unknown) => {
+  const state = readWorkspaceState()
+  const payload = updates && typeof updates === 'object' ? (updates as Record<string, unknown>) : {}
+  let updatedWorkspace: WorkspaceRecord | null = null
+
+  const workspaces = state.workspaces.map((workspace) => {
+    if (workspace.id !== id) return workspace
+
+    updatedWorkspace = {
+      ...workspace,
+      name:
+        typeof payload.name === 'string' && payload.name.trim()
+          ? payload.name.trim()
+          : workspace.name,
+      updatedAt: Date.now(),
+    }
+    return updatedWorkspace
+  })
+
+  writeWorkspaceState({
+    ...state,
+    workspaces,
+  })
+
+  return updatedWorkspace
+})
+
+ipcMain.handle('store:updateWorkspaceSnapshot', (_event, id: string, snapshot: unknown) => {
+  const state = readWorkspaceState()
+  const normalizedSnapshot = normalizeWorkspaceSnapshot(
+    snapshot,
+    typeof store.get('theme') === 'string' ? String(store.get('theme')) : defaultPreferences.defaultThemeId
+  )
+
+  const workspaces = state.workspaces.map((workspace) =>
+    workspace.id === id
+      ? {
+          ...workspace,
+          updatedAt: Date.now(),
+          snapshot: normalizedSnapshot,
+        }
+      : workspace
+  )
+
+  writeWorkspaceState({
+    ...state,
+    workspaces,
+  })
+
+  store.set('layout', normalizedSnapshot.layout)
+  store.set('theme', normalizedSnapshot.themeId)
+
+  return { success: true }
+})
+
+ipcMain.handle('store:deleteWorkspace', (_event, id: string) => {
+  const state = readWorkspaceState()
+  const workspaces = state.workspaces.filter((workspace) => workspace.id !== id)
+  const currentWorkspaceId =
+    state.currentWorkspaceId === id ? workspaces[0]?.id ?? null : state.currentWorkspaceId
+
+  writeWorkspaceState({
+    currentWorkspaceId,
+    workspaces,
+  })
+
+  return { success: true, currentWorkspaceId }
+})
+
+ipcMain.handle('store:setCurrentWorkspace', (_event, id: string) => {
+  const state = readWorkspaceState()
+  const now = Date.now()
+  const existingWorkspace = state.workspaces.find((workspace) => workspace.id === id)
+  if (!existingWorkspace) return null
+
+  const currentWorkspace: WorkspaceRecord = {
+    ...existingWorkspace,
+    lastOpenedAt: now,
+  }
+
+  const workspaces = state.workspaces.map((workspace) =>
+    workspace.id === id ? currentWorkspace : workspace
+  )
+
+  writeWorkspaceState({
+    currentWorkspaceId: id,
+    workspaces,
+  })
+
+  store.set('layout', currentWorkspace.snapshot.layout)
+  store.set('theme', currentWorkspace.snapshot.themeId)
+
+  return currentWorkspace
 })
 
 ipcMain.handle('config:getPreferences', () => {

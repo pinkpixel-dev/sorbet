@@ -4,16 +4,19 @@
   <img src="./logo.png" width="300" height="300" alt="Sorbet logo" />
 </p>
 
-`Sorbet` is a desktop terminal workspace built with Electron, React, and xterm.js. Instead of a single terminal pane or fixed tab strip, it gives you a canvas of movable terminal cards that can be opened, resized, minimized, restored, themed, and tuned to fit the way you work.
+`Sorbet` is a desktop terminal workspace built with Electron, React, and xterm.js. Instead of a single terminal pane or fixed tab strip, it gives you a canvas of movable terminal cards that can be opened, resized, minimized, restored, pinned, themed, saved as named workspaces, and tuned to fit the way you work.
 
 It is especially useful for running multiple CLI agents side by side in one tiling workspace. Tools like Claude Code CLI, OpenAI Codex CLI, GitHub Copilot CLI, Amazon Kiro CLI, Google Gemini CLI, OpenCode, and similar agent-driven terminal tools become much more powerful when you can keep several sessions visible at once for coding, research, debugging, review, or general help with tasks on your computer.
 
-Version `1.0.0` is the first stable Sorbet release. It brings the project from prototype territory into a practical daily-driver desktop terminal with PTY-backed sessions, persistent workspace state, bundled and custom themes, user-editable preferences, and Linux release packaging.
+Sorbet now includes named saved workspaces, a workspace sidebar, and pinned terminal windows on top of the `1.0.0` foundation of PTY-backed sessions, theming, preferences, and desktop packaging.
 
 ## Highlights
 
 - Multi-session terminal workspace with draggable, resizable terminal cards
 - Real PTY-backed shells powered by `node-pty`
+- Named saved workspaces with restore, rename, and delete actions
+- Workspace sidebar for switching between saved layouts
+- Window pinning and layout locking for terminal cards
 - Persistent workspace layout and active theme
 - Minimize, maximize, restore, and close controls for each terminal window
 - Editable terminal titles with a hover affordance
@@ -51,10 +54,19 @@ Version `1.0.0` is the first stable Sorbet release. It brings the project from p
 - Open multiple terminal sessions in the same window
 - Drag cards by the full title bar
 - Resize cards with smoother, finer grid movement
+- Pin cards to lock drag and resize changes
 - Minimize sessions to a dock and restore them later
 - Maximize a session to focus on a single terminal
 - Close sessions cleanly and terminate their PTYs
 - Spawn new cards horizontally to the right of the most recent card when space allows
+
+### Workspace management
+
+- Save the current canvas as a named workspace
+- Restore the most recently selected saved workspace on launch
+- Browse saved workspaces from the built-in left sidebar
+- Rename and delete saved workspaces
+- Preserve terminal metadata such as titles, minimized state, and pinned state inside saved workspaces
 
 ### Terminal behavior
 
@@ -96,9 +108,9 @@ Version `1.0.0` is the first stable Sorbet release. It brings the project from p
 
 At a high level, the application is split into three parts:
 
-1. The Electron main process creates the native window, spawns PTY-backed shell sessions, manages menus, loads and watches user configuration files, and persists workspace settings.
+1. The Electron main process creates the native window, spawns PTY-backed shell sessions, manages menus, loads and watches user configuration files, and persists workspace layouts, saved workspaces, and theme settings.
 2. The preload script exposes a small, typed API on `window.sorbet` so the renderer can safely request PTY, clipboard, and storage operations.
-3. The React renderer manages the workspace layout, terminal lifecycle, theme selection, user preferences, and card interactions.
+3. The React renderer manages workspace restoration, saved-workspace switching, terminal lifecycle, theme selection, user preferences, and card interactions.
 
 When a new card is created, the renderer computes a layout position, adds a session to the Zustand store, and mounts a `TerminalCard`. That card initializes xterm.js, asks the main process to create a PTY, wires terminal input/output over IPC, and reacts to live preference changes such as font or clipboard behavior.
 

@@ -12,9 +12,11 @@ interface TerminalCardProps {
   preferences: TerminalPreferences
   isActive: boolean
   isMaximized: boolean
+  isPinned: boolean
   onActivate: () => void
   onMinimize: () => void
   onMaximize: () => void
+  onTogglePin: () => void
 }
 
 export function TerminalCard({
@@ -23,9 +25,11 @@ export function TerminalCard({
   preferences,
   isActive,
   isMaximized,
+  isPinned,
   onActivate,
   onMinimize,
   onMaximize,
+  onTogglePin,
 }: TerminalCardProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
@@ -378,6 +382,11 @@ export function TerminalCard({
     setIsEditingTitle(true)
   }
 
+  const handleTogglePin = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onTogglePin()
+  }
+
   return (
     <div
       className="group flex flex-col w-full h-full rounded-xl overflow-hidden"
@@ -392,7 +401,7 @@ export function TerminalCard({
     >
       {/* Title bar */}
       <div
-        className="drag-handle grid items-center px-3 flex-shrink-0 select-none cursor-default"
+        className={`grid items-center px-3 flex-shrink-0 select-none cursor-default ${isPinned ? '' : 'drag-handle'}`}
         style={{
           height: '32px',
           background: theme.background,
@@ -470,6 +479,26 @@ export function TerminalCard({
 
         {/* Active indicator */}
         <div className="flex items-center justify-end gap-2">
+          <button
+            className="window-action flex items-center justify-center w-5 h-5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{
+              color: isPinned ? theme.accent : isActive ? theme.foreground : '#71717a',
+              background: isPinned ? theme.accent + '1a' : isActive ? '#18181b' : 'transparent',
+            }}
+            onClick={handleTogglePin}
+            onMouseDown={(e) => e.stopPropagation()}
+            title={isPinned ? 'Unpin window' : 'Pin window'}
+          >
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M5.3 2.5h5.4m-4.3 3.1V2.5m3.2 3.1V2.5m-4.2 0-.8 3.1 2.3 1.7v4.6m4.3-9.4.8 3.1-2.3 1.7"
+                stroke="currentColor"
+                strokeWidth="1.15"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
           {!isEditingTitle && (
             <button
               className="window-action title-edit-trigger flex items-center justify-center w-5 h-5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
@@ -502,6 +531,13 @@ export function TerminalCard({
             <div
               className="w-1.5 h-1.5 rounded-full flex-shrink-0"
               style={{ background: theme.accent }}
+            />
+          )}
+          {!isActive && isPinned && (
+            <div
+              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+              style={{ background: theme.accent, opacity: 0.7 }}
+              title="Pinned"
             />
           )}
         </div>

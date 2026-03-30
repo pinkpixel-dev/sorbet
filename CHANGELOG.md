@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Saved workspaces with named workspace snapshots
+- Workspace sidebar for browsing, switching, renaming, deleting, and saving workspaces
+- Window pinning so terminal cards can be locked against drag and resize changes
+- In-app workspace naming dialog for save-as and rename flows
+
+### Changed
+
+- Expanded workspace persistence from a single saved layout into a multi-workspace model
+- Restoring a workspace now preserves session metadata such as title, minimized state, and pinned state
+- Existing single-layout installs are migrated into a default saved workspace automatically
+
+### Fixed
+
+- Workspace save and rename interactions that were unreliable when driven by native prompt dialogs
+- Blank-screen regression triggered by typing into the workspace naming dialog
+- Renderer state sync issues after workspace creation and rename flows
+
 ## 1.0.0 - 2026-03-21
 
 First stable release of `Sorbet`.

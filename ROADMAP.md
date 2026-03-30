@@ -8,9 +8,9 @@ It is intended to guide product direction, help prioritize development, and give
 
 Ordered from the strongest foundational work to the heavier expansion features:
 
-- [ ] Saved workspaces and layout presets
-- [ ] Sidebar for saved workspaces
-- [ ] Window pinning and layout locking
+- [x] Saved workspaces and layout presets
+- [x] Sidebar for saved workspaces
+- [x] Window pinning and layout locking
 - [ ] Per-window themes and color identity
 - [ ] Session metadata and status
 - [ ] Commands and command palette
@@ -59,6 +59,8 @@ These items are the strongest candidates for the next phase because they deepen 
 
 Allow users to save and restore named workspace states rather than relying on a single persisted layout.
 
+Status: Implemented.
+
 Potential scope:
 
 - save the current workspace as a named session or layout
@@ -77,6 +79,8 @@ Why it matters:
 
 Add a lightweight sidebar for browsing and switching between saved workspaces and layouts.
 
+Status: Implemented.
+
 Potential scope:
 
 - collapsible left sidebar
@@ -93,6 +97,8 @@ Why it matters:
 ### 3. Window Pinning and Layout Locking
 
 Let users pin windows to keep them at a fixed size and position when desired.
+
+Status: Implemented.
 
 Potential scope:
 

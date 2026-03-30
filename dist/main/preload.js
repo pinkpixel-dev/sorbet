@@ -36,6 +36,12 @@ electron_1.contextBridge.exposeInMainWorld('sorbet', {
         saveLayout: (layout) => electron_1.ipcRenderer.invoke('store:saveLayout', layout),
         getTheme: () => electron_1.ipcRenderer.invoke('store:getTheme'),
         saveTheme: (theme) => electron_1.ipcRenderer.invoke('store:saveTheme', theme),
+        getWorkspaces: () => electron_1.ipcRenderer.invoke('store:getWorkspaces'),
+        createWorkspace: (name, snapshot, makeCurrent = true) => electron_1.ipcRenderer.invoke('store:createWorkspace', name, snapshot, makeCurrent),
+        updateWorkspace: (id, updates) => electron_1.ipcRenderer.invoke('store:updateWorkspace', id, updates),
+        updateWorkspaceSnapshot: (id, snapshot) => electron_1.ipcRenderer.invoke('store:updateWorkspaceSnapshot', id, snapshot),
+        deleteWorkspace: (id) => electron_1.ipcRenderer.invoke('store:deleteWorkspace', id),
+        setCurrentWorkspace: (id) => electron_1.ipcRenderer.invoke('store:setCurrentWorkspace', id),
         getPreferences: () => electron_1.ipcRenderer.invoke('config:getPreferences'),
         getCustomThemes: () => electron_1.ipcRenderer.invoke('config:getCustomThemes'),
         onConfigChanged: (callback) => {

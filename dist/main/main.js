@@ -99,6 +99,150 @@ const store = new electron_store_1.default();
 const sessions = new Map();
 let themeDirectoryWatcher = null;
 let configChangedTimeout = null;
+function createId(prefix) {
+    return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+function normalizeLayoutItem(raw) {
+    if (!raw || typeof raw !== 'object')
+        return null;
+    const item = raw;
+    if (typeof item.i !== 'string' ||
+        typeof item.x !== 'number' ||
+        typeof item.y !== 'number' ||
+        typeof item.w !== 'number' ||
+        typeof item.h !== 'number') {
+        return null;
+    }
+    return {
+        i: item.i,
+        x: item.x,
+        y: item.y,
+        w: item.w,
+        h: item.h,
+        minW: typeof item.minW === 'number' ? item.minW : undefined,
+        minH: typeof item.minH === 'number' ? item.minH : undefined,
+    };
+}
+function normalizeSession(raw) {
+    if (!raw || typeof raw !== 'object')
+        return null;
+    const session = raw;
+    if (typeof session.id !== 'string')
+        return null;
+    return {
+        id: session.id,
+        title: typeof session.title === 'string' && session.title.trim() ? session.title : 'Terminal',
+        pid: typeof session.pid === 'number' ? session.pid : undefined,
+        isAlive: false,
+        createdAt: typeof session.createdAt === 'number' ? session.createdAt : Date.now(),
+        isMinimized: typeof session.isMinimized === 'boolean' ? session.isMinimized : false,
+        isPinned: typeof session.isPinned === 'boolean' ? session.isPinned : false,
+    };
+}
+function normalizeWorkspaceSnapshot(raw, fallbackThemeId) {
+    const data = raw && typeof raw === 'object' ? raw : {};
+    const layout = Array.isArray(data.layout)
+        ? data.layout.map(normalizeLayoutItem).filter((item) => Boolean(item))
+        : [];
+    const normalizedSessions = Array.isArray(data.sessions)
+        ? data.sessions.map(normalizeSession).filter((session) => Boolean(session))
+        : [];
+    const sessionsById = new Map(normalizedSessions.map((session) => [session.id, session]));
+    const sessions = layout.map((item) => {
+        const existing = sessionsById.get(item.i);
+        return (existing || {
+            id: item.i,
+            title: 'Terminal',
+            isAlive: false,
+            createdAt: Date.now(),
+            isMinimized: false,
+            isPinned: false,
+        });
+    });
+    return {
+        layout,
+        sessions,
+        themeId: typeof data.themeId === 'string' && data.themeId.trim()
+            ? data.themeId
+            : fallbackThemeId,
+    };
+}
+function normalizeWorkspaceRecord(raw, fallbackThemeId) {
+    if (!raw || typeof raw !== 'object')
+        return null;
+    const item = raw;
+    const now = Date.now();
+    if (typeof item.id !== 'string')
+        return null;
+    return {
+        id: item.id,
+        name: typeof item.name === 'string' && item.name.trim() ? item.name.trim() : 'Untitled Workspace',
+        createdAt: typeof item.createdAt === 'number' ? item.createdAt : now,
+        updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : now,
+        lastOpenedAt: typeof item.lastOpenedAt === 'number' ? item.lastOpenedAt : now,
+        snapshot: normalizeWorkspaceSnapshot(item.snapshot, fallbackThemeId),
+    };
+}
+function readWorkspaceState() {
+    const fallbackThemeId = typeof store.get('theme') === 'string' ? String(store.get('theme')) : defaultPreferences.defaultThemeId;
+    const raw = store.get('workspaces');
+    if (raw && typeof raw === 'object') {
+        const data = raw;
+        const workspaces = Array.isArray(data.workspaces)
+            ? data.workspaces
+                .map((item) => normalizeWorkspaceRecord(item, fallbackThemeId))
+                .filter((item) => Boolean(item))
+            : [];
+        const currentWorkspaceId = typeof data.currentWorkspaceId === 'string' ? data.currentWorkspaceId : null;
+        if (workspaces.length > 0) {
+            return {
+                currentWorkspaceId: workspaces.some((workspace) => workspace.id === currentWorkspaceId)
+                    ? currentWorkspaceId
+                    : workspaces[0].id,
+                workspaces,
+            };
+        }
+    }
+    const legacyLayoutRaw = store.get('layout');
+    const legacyLayout = Array.isArray(legacyLayoutRaw)
+        ? legacyLayoutRaw.map(normalizeLayoutItem).filter((item) => Boolean(item))
+        : [];
+    if (legacyLayout.length > 0) {
+        const now = Date.now();
+        const migratedWorkspace = {
+            id: createId('ws'),
+            name: 'Current Workspace',
+            createdAt: now,
+            updatedAt: now,
+            lastOpenedAt: now,
+            snapshot: normalizeWorkspaceSnapshot({
+                layout: legacyLayout,
+                sessions: legacyLayout.map((item) => ({
+                    id: item.i,
+                    title: 'Terminal',
+                    isAlive: false,
+                    createdAt: now,
+                    isMinimized: false,
+                    isPinned: false,
+                })),
+                themeId: fallbackThemeId,
+            }, fallbackThemeId),
+        };
+        const nextState = {
+            currentWorkspaceId: migratedWorkspace.id,
+            workspaces: [migratedWorkspace],
+        };
+        writeWorkspaceState(nextState);
+        return nextState;
+    }
+    return {
+        currentWorkspaceId: null,
+        workspaces: [],
+    };
+}
+function writeWorkspaceState(state) {
+    store.set('workspaces', state);
+}
 function resolveShell() {
     if (process.platform === 'win32') {
         return { command: 'powershell.exe', args: [] };
@@ -639,7 +783,9 @@ electron_1.ipcMain.handle('pty:kill', (_event, sessionId) => {
 });
 // Get saved layout from store
 electron_1.ipcMain.handle('store:getLayout', () => {
-    return store.get('layout', null);
+    const workspaceState = readWorkspaceState();
+    const current = workspaceState.workspaces.find((workspace) => workspace.id === workspaceState.currentWorkspaceId);
+    return current?.snapshot.layout ?? store.get('layout', null);
 });
 // Save layout to store
 electron_1.ipcMain.handle('store:saveLayout', (_event, layout) => {
@@ -655,6 +801,96 @@ electron_1.ipcMain.handle('store:getTheme', () => {
 electron_1.ipcMain.handle('store:saveTheme', (_event, theme) => {
     store.set('theme', theme);
     return { success: true };
+});
+electron_1.ipcMain.handle('store:getWorkspaces', () => {
+    return readWorkspaceState();
+});
+electron_1.ipcMain.handle('store:createWorkspace', (_event, name, snapshot, makeCurrent = true) => {
+    const state = readWorkspaceState();
+    const now = Date.now();
+    const workspace = {
+        id: createId('ws'),
+        name: typeof name === 'string' && name.trim() ? name.trim() : `Workspace ${state.workspaces.length + 1}`,
+        createdAt: now,
+        updatedAt: now,
+        lastOpenedAt: now,
+        snapshot: normalizeWorkspaceSnapshot(snapshot, typeof store.get('theme') === 'string' ? String(store.get('theme')) : defaultPreferences.defaultThemeId),
+    };
+    const nextState = {
+        currentWorkspaceId: makeCurrent ? workspace.id : state.currentWorkspaceId,
+        workspaces: [...state.workspaces, workspace],
+    };
+    writeWorkspaceState(nextState);
+    return workspace;
+});
+electron_1.ipcMain.handle('store:updateWorkspace', (_event, id, updates) => {
+    const state = readWorkspaceState();
+    const payload = updates && typeof updates === 'object' ? updates : {};
+    let updatedWorkspace = null;
+    const workspaces = state.workspaces.map((workspace) => {
+        if (workspace.id !== id)
+            return workspace;
+        updatedWorkspace = {
+            ...workspace,
+            name: typeof payload.name === 'string' && payload.name.trim()
+                ? payload.name.trim()
+                : workspace.name,
+            updatedAt: Date.now(),
+        };
+        return updatedWorkspace;
+    });
+    writeWorkspaceState({
+        ...state,
+        workspaces,
+    });
+    return updatedWorkspace;
+});
+electron_1.ipcMain.handle('store:updateWorkspaceSnapshot', (_event, id, snapshot) => {
+    const state = readWorkspaceState();
+    const normalizedSnapshot = normalizeWorkspaceSnapshot(snapshot, typeof store.get('theme') === 'string' ? String(store.get('theme')) : defaultPreferences.defaultThemeId);
+    const workspaces = state.workspaces.map((workspace) => workspace.id === id
+        ? {
+            ...workspace,
+            updatedAt: Date.now(),
+            snapshot: normalizedSnapshot,
+        }
+        : workspace);
+    writeWorkspaceState({
+        ...state,
+        workspaces,
+    });
+    store.set('layout', normalizedSnapshot.layout);
+    store.set('theme', normalizedSnapshot.themeId);
+    return { success: true };
+});
+electron_1.ipcMain.handle('store:deleteWorkspace', (_event, id) => {
+    const state = readWorkspaceState();
+    const workspaces = state.workspaces.filter((workspace) => workspace.id !== id);
+    const currentWorkspaceId = state.currentWorkspaceId === id ? workspaces[0]?.id ?? null : state.currentWorkspaceId;
+    writeWorkspaceState({
+        currentWorkspaceId,
+        workspaces,
+    });
+    return { success: true, currentWorkspaceId };
+});
+electron_1.ipcMain.handle('store:setCurrentWorkspace', (_event, id) => {
+    const state = readWorkspaceState();
+    const now = Date.now();
+    const existingWorkspace = state.workspaces.find((workspace) => workspace.id === id);
+    if (!existingWorkspace)
+        return null;
+    const currentWorkspace = {
+        ...existingWorkspace,
+        lastOpenedAt: now,
+    };
+    const workspaces = state.workspaces.map((workspace) => workspace.id === id ? currentWorkspace : workspace);
+    writeWorkspaceState({
+        currentWorkspaceId: id,
+        workspaces,
+    });
+    store.set('layout', currentWorkspace.snapshot.layout);
+    store.set('theme', currentWorkspace.snapshot.themeId);
+    return currentWorkspace;
 });
 electron_1.ipcMain.handle('config:getPreferences', () => {
     return readPreferences();

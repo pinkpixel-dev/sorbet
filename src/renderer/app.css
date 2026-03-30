@@ -110,3 +110,21 @@
   border-radius: 12px !important;
   opacity: 1 !important;
 }
+
+.workspace-sidebar {
+  min-width: 220px;
+}
+
+.workspace-sidebar-item {
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.workspace-sidebar-item:hover {
+  background: #111113;
+}
+
+@media (max-width: 900px) {
+  .workspace-sidebar {
+    width: 240px !important;
+  }
+}

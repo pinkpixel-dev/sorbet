@@ -24,6 +24,12 @@ export interface SorbetAPI {
     saveLayout: (layout: LayoutItem[]) => Promise<{ success: boolean }>
     getTheme: () => Promise<string>
     saveTheme: (theme: string) => Promise<{ success: boolean }>
+    getWorkspaces: () => Promise<WorkspaceState>
+    createWorkspace: (name: string, snapshot: WorkspaceSnapshot, makeCurrent?: boolean) => Promise<WorkspaceRecord>
+    updateWorkspace: (id: string, updates: Partial<WorkspaceRecord>) => Promise<WorkspaceRecord | null>
+    updateWorkspaceSnapshot: (id: string, snapshot: WorkspaceSnapshot) => Promise<{ success: boolean }>
+    deleteWorkspace: (id: string) => Promise<{ success: boolean; currentWorkspaceId: string | null }>
+    setCurrentWorkspace: (id: string) => Promise<WorkspaceRecord | null>
     getPreferences: () => Promise<TerminalPreferences>
     getCustomThemes: () => Promise<Theme[]>
     onConfigChanged: (callback: () => void) => () => void
@@ -39,6 +45,9 @@ export interface LayoutItem {
   h: number
   minW?: number
   minH?: number
+  static?: boolean
+  isDraggable?: boolean
+  isResizable?: boolean
 }
 
 // Terminal session
@@ -49,6 +58,27 @@ export interface TerminalSession {
   isAlive: boolean
   createdAt: number
   isMinimized?: boolean
+  isPinned?: boolean
+}
+
+export interface WorkspaceSnapshot {
+  layout: LayoutItem[]
+  sessions: TerminalSession[]
+  themeId: string
+}
+
+export interface WorkspaceRecord {
+  id: string
+  name: string
+  createdAt: number
+  updatedAt: number
+  lastOpenedAt: number
+  snapshot: WorkspaceSnapshot
+}
+
+export interface WorkspaceState {
+  currentWorkspaceId: string | null
+  workspaces: WorkspaceRecord[]
 }
 
 // Theme definition

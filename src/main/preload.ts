@@ -46,6 +46,15 @@ contextBridge.exposeInMainWorld('sorbet', {
     saveLayout: (layout: unknown) => ipcRenderer.invoke('store:saveLayout', layout),
     getTheme: () => ipcRenderer.invoke('store:getTheme'),
     saveTheme: (theme: string) => ipcRenderer.invoke('store:saveTheme', theme),
+    getWorkspaces: () => ipcRenderer.invoke('store:getWorkspaces'),
+    createWorkspace: (name: string, snapshot: unknown, makeCurrent = true) =>
+      ipcRenderer.invoke('store:createWorkspace', name, snapshot, makeCurrent),
+    updateWorkspace: (id: string, updates: unknown) =>
+      ipcRenderer.invoke('store:updateWorkspace', id, updates),
+    updateWorkspaceSnapshot: (id: string, snapshot: unknown) =>
+      ipcRenderer.invoke('store:updateWorkspaceSnapshot', id, snapshot),
+    deleteWorkspace: (id: string) => ipcRenderer.invoke('store:deleteWorkspace', id),
+    setCurrentWorkspace: (id: string) => ipcRenderer.invoke('store:setCurrentWorkspace', id),
     getPreferences: () => ipcRenderer.invoke('config:getPreferences'),
     getCustomThemes: () => ipcRenderer.invoke('config:getCustomThemes'),
     onConfigChanged: (callback: () => void) => {

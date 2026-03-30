@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { LayoutItem, TerminalSession } from '../types'
+import { LayoutItem, TerminalSession, WorkspaceSnapshot } from '../types'
 
 interface SorbetStore {
   // Sessions
@@ -20,9 +20,11 @@ interface SorbetStore {
   setActiveSession: (id: string | null) => void
   updateLayout: (layout: LayoutItem[]) => void
   setTheme: (themeId: string) => void
-  restoreWorkspace: (layout: LayoutItem[]) => void
+  restoreWorkspace: (snapshot: WorkspaceSnapshot) => void
   toggleMinimizeSession: (id: string) => void
   toggleMaximizeSession: (id: string) => void
+  togglePinSession: (id: string) => void
+  getWorkspaceSnapshot: () => WorkspaceSnapshot
 }
 
 export const useSorbetStore = create<SorbetStore>((set) => ({
@@ -66,18 +68,17 @@ export const useSorbetStore = create<SorbetStore>((set) => ({
 
   setTheme: (themeId) => set({ themeId }),
 
-  restoreWorkspace: (layout) =>
+  restoreWorkspace: (snapshot) =>
     set({
-      layout,
-      sessions: layout.map((item) => ({
-        id: item.i,
-        title: 'Terminal',
+      layout: snapshot.layout,
+      sessions: snapshot.sessions.map((session) => ({
+        ...session,
         isAlive: false,
-        createdAt: Date.now(),
-        isMinimized: false,
+        isPinned: session.isPinned ?? false,
       })),
-      activeSessionId: layout[0]?.i ?? null,
+      activeSessionId: snapshot.sessions.find((session) => !session.isMinimized)?.id ?? snapshot.layout[0]?.i ?? null,
       maximizedSessionId: null,
+      themeId: snapshot.themeId,
     }),
 
   toggleMinimizeSession: (id) =>
@@ -111,4 +112,25 @@ export const useSorbetStore = create<SorbetStore>((set) => ({
         session.id === id ? { ...session, isMinimized: false } : session
       ),
     })),
+
+  togglePinSession: (id) =>
+    set((state) => ({
+      sessions: state.sessions.map((session) =>
+        session.id === id
+          ? { ...session, isPinned: !session.isPinned }
+          : session
+      ),
+    })),
+
+  getWorkspaceSnapshot: () => {
+    const state = useSorbetStore.getState()
+    return {
+      layout: state.layout,
+      sessions: state.sessions.map((session) => ({
+        ...session,
+        isAlive: false,
+      })),
+      themeId: state.themeId,
+    }
+  },
 }))

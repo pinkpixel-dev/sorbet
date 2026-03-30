@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document explains how `Sorbet` is structured in `v1.0.0`, how the runtime pieces communicate, and where to make changes when extending the project.
+This document explains how `Sorbet` is currently structured, how the runtime pieces communicate, and where to make changes when extending the project.
 
 Sorbet is a desktop terminal workspace built on Electron. It combines:
 
@@ -29,12 +29,12 @@ The runtime is composed of five major layers:
 1. Electron launches and creates the main window.
 2. The renderer loads either from the Vite dev server or the built renderer bundle.
 3. The renderer requests workspace state, user preferences, and custom themes from `window.sorbet.store`.
-4. If a saved layout exists, the Zustand store reconstructs the workspace from it.
-5. If no layout exists, the renderer creates one initial terminal session.
+4. If a saved workspace exists, the Zustand store reconstructs the current workspace snapshot from it.
+5. If no saved workspace exists, the renderer creates one initial terminal session.
 6. Each `TerminalCard` mounts xterm.js and asks the main process to spawn a PTY.
 7. Input from xterm.js is forwarded to the PTY over IPC.
 8. Output from the PTY is streamed back to the card over IPC.
-9. Layout and theme changes are persisted through `electron-store`.
+9. Layout, saved-workspace, and theme changes are persisted through `electron-store`.
 10. Preference and custom-theme changes are detected in the main process and pushed back to the renderer over a lightweight config-change event.
 11. Packaged builds load the bundled renderer based on `app.isPackaged` rather than environment variables.
 
@@ -50,7 +50,7 @@ This directory contains the Electron main process and preload bridge.
   - selects and spawns shell processes with `node-pty`
   - owns the PTY session map
   - forwards PTY output and exit events to the renderer
-  - persists workspace layout and selected theme
+  - persists saved workspaces, layout snapshots, and selected theme
   - creates and watches `preferences.json` plus the custom theme directory
   - defines the native application menu
 - `preload.ts`
@@ -64,6 +64,7 @@ This directory contains the UI and renderer-side app state.
 - `App.tsx`
   - top-level application shell
   - workspace initialization
+  - saved-workspace sidebar and dialog flows
   - grid layout configuration
   - theme selection
   - preference loading
@@ -80,7 +81,7 @@ This directory contains the UI and renderer-side app state.
 - `components/ThemePicker.tsx`
   - theme dropdown UI
 - `store/index.ts`
-  - Zustand store for sessions, theme, active state, and layout
+  - Zustand store for sessions, theme, active state, layout, and workspace snapshot restoration
 - `themes/index.ts`
   - built-in theme catalog
   - default terminal preference values
@@ -166,6 +167,7 @@ Sorbet uses two persistence paths:
 
 - `electron-store` for:
   - `layout`
+  - `workspaces`
   - `theme`
 - JSON files in Electron `userData` for:
   - `preferences.json`
@@ -195,6 +197,12 @@ The preload script exposes a small API under `window.sorbet`.
   - `saveLayout(layout)`
   - `getTheme()`
   - `saveTheme(theme)`
+  - `getWorkspaces()`
+  - `createWorkspace(name, snapshot, makeCurrent?)`
+  - `updateWorkspace(id, updates)`
+  - `updateWorkspaceSnapshot(id, snapshot)`
+  - `deleteWorkspace(id)`
+  - `setCurrentWorkspace(id)`
   - `getPreferences()`
   - `getCustomThemes()`
   - `onConfigChanged(callback)`
@@ -214,12 +222,15 @@ The renderer is responsible for translating application state into the terminal 
 Key responsibilities:
 
 - restoring persisted workspace state on first load
+- loading and switching saved workspaces
 - loading user preferences and custom themes
 - creating a default terminal when there is no saved layout
 - managing the grid width for `react-grid-layout`
 - autosaving layout changes
+- autosaving the current workspace snapshot
 - handling theme changes
 - binding `Cmd/Ctrl+T` for new sessions
+- rendering the workspace sidebar and naming dialog
 - rendering the minimized-session dock
 
 ### Session creation
@@ -250,7 +261,7 @@ Responsibilities include:
 - supporting copy/paste shortcuts and middle-click paste
 - killing the PTY on unmount
 
-One important implementation detail for `1.0.0`: PTY creation is intentionally separated from preference and clipboard behavior updates so terminal sessions are not torn down by unrelated UI state changes.
+One important implementation detail: PTY creation is intentionally separated from preference, workspace, and clipboard behavior updates so terminal sessions are not torn down by unrelated UI state changes.
 
 ## State Model
 
@@ -275,13 +286,16 @@ The Zustand store in `src/renderer/store/index.ts` is the authoritative renderer
 - `restoreWorkspace`
 - `toggleMinimizeSession`
 - `toggleMaximizeSession`
+- `togglePinSession`
+- `getWorkspaceSnapshot`
 
 ### State behavior notes
 
 - Removing a session also removes its layout item.
-- Restoring a workspace recreates sessions from saved layout items.
+- Restoring a workspace recreates sessions from the saved workspace snapshot.
 - Minimized sessions stay in state but are omitted from the grid.
 - Maximized sessions temporarily replace the grid layout with a single item.
+- Pinned sessions stay in state and mark their grid items as non-draggable and non-resizable.
 
 ## UI Layout Model
 
@@ -301,6 +315,7 @@ The card canvas uses `react-grid-layout`.
 - visible sessions render in the grid
 - minimized sessions render in the bottom dock
 - maximized sessions temporarily replace the grid layout with a single item
+- pinned sessions render in place but cannot be dragged or resized
 
 ## Theme System
 
