@@ -35,8 +35,9 @@ The runtime is composed of five major layers:
 7. Input from xterm.js is forwarded to the PTY over IPC.
 8. Output from the PTY is streamed back to the card over IPC.
 9. Layout, saved-workspace, workspace-theme, and per-window theme changes are persisted through `electron-store`.
-10. Preference and custom-theme changes are detected in the main process and pushed back to the renderer over a lightweight config-change event.
-11. Packaged builds load the bundled renderer based on `app.isPackaged` rather than environment variables.
+10. The command palette builds a searchable list of actions from live renderer state so users can switch workspaces, change themes, and jump between sessions quickly.
+11. Preference and custom-theme changes are detected in the main process and pushed back to the renderer over a lightweight config-change event.
+12. Packaged builds load the bundled renderer based on `app.isPackaged` rather than environment variables.
 
 ## Directory Guide
 
@@ -65,12 +66,16 @@ This directory contains the UI and renderer-side app state.
   - top-level application shell
   - workspace initialization
   - saved-workspace sidebar and dialog flows
+  - command palette command generation and keyboard shortcuts
   - grid layout configuration
   - workspace theme selection
   - per-window theme resolution
   - preference loading
   - custom theme loading
   - minimized-session dock
+- `components/CommandPalette.tsx`
+  - searchable modal command palette
+  - keyboard navigation and command execution
 - `components/TerminalCard.tsx`
   - xterm.js lifecycle
   - PTY creation and teardown
@@ -78,6 +83,7 @@ This directory contains the UI and renderer-side app state.
   - terminal resizing
   - clipboard shortcuts and paste behavior
   - title editing
+  - live session metadata, activity state, and unread markers
   - per-card theme selection and inherit behavior
   - card color identity affordances
   - card window controls
@@ -145,6 +151,8 @@ PTY sessions are stored in a `Map<string, PtySession>`. Each session contains:
 
 - the `node-pty` instance
 - the renderer-facing session ID
+- the resolved shell label
+- the last known current working directory
 
 The main process exposes IPC handlers/events for:
 
@@ -154,6 +162,7 @@ The main process exposes IPC handlers/events for:
 - `pty:kill`
 
 On process exit, the session is removed from the map and an exit event is pushed back to the renderer.
+Sorbet also performs best-effort cwd polling so terminal cards can show live working-directory metadata without giving the renderer direct process access.
 
 ### Shell resolution
 
@@ -199,6 +208,7 @@ The preload script exposes a small API under `window.sorbet`.
   - `kill(sessionId)`
   - `onData(sessionId, callback)`
   - `onExit(sessionId, callback)`
+  - `onMetadata(sessionId, callback)`
 - `window.sorbet.store`
   - `getLayout()`
   - `saveLayout(layout)`

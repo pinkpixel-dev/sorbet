@@ -9,6 +9,8 @@
 - Window pinning so terminal cards can be locked against drag and resize changes
 - In-app workspace naming dialog for save-as and rename flows
 - Per-window theme overrides with inherit-from-workspace behavior and card-level color identity
+- Session metadata badges for shell, current directory, activity state, and unread output
+- Searchable command palette with keyboard navigation for app actions, workspace switching, theme changes, and session focusing
 
 ### Changed
 

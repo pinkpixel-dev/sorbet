@@ -46,6 +46,7 @@ export function TerminalCard({
   const isInitialized = useRef(false)
   const resizeFrameRef = useRef<number | null>(null)
   const resizeTimeoutRef = useRef<number | null>(null)
+  const activityTimeoutRef = useRef<number | null>(null)
 
   const { updateSession, removeSession, sessions } = useSorbetStore()
   const session = sessions.find((item) => item.id === sessionId)
@@ -54,6 +55,25 @@ export function TerminalCard({
   const [draftTitle, setDraftTitle] = useState('')
   const themeMenuRef = useRef<HTMLDivElement>(null)
   const displayTitle = useMemo(() => session?.title || 'Terminal', [session?.title])
+  const shellLabel = session?.shellName || 'shell'
+  const cwdLabel = useMemo(() => {
+    if (!session?.cwd) return 'Home'
+    const parts = session.cwd.split('/').filter(Boolean)
+    return parts[parts.length - 1] || session.cwd
+  }, [session?.cwd])
+  const statusLabel = session?.status === 'active'
+    ? 'Active'
+    : session?.status === 'exited'
+      ? 'Exited'
+      : session?.isAlive
+        ? 'Idle'
+        : 'Starting'
+  const statusColor =
+    session?.status === 'active'
+      ? theme.accent
+      : session?.status === 'exited'
+        ? '#f87171'
+        : '#71717a'
 
   const matchesShortcut = useCallback((event: KeyboardEvent, shortcut: string) => {
     const parts = shortcut
@@ -189,7 +209,13 @@ export function TerminalCard({
       // Spawn PTY
       window.sorbet.pty.create(sessionId, cols, rows).then((result) => {
         if (result.success) {
-          updateSession(sessionId, { pid: result.pid, isAlive: true })
+          updateSession(sessionId, {
+            pid: result.pid,
+            isAlive: true,
+            shellName: result.shellName,
+            cwd: result.cwd,
+            status: 'idle',
+          })
         } else {
           term.write(`\r\n\x1b[31mFailed to start shell: ${result.error}\x1b[0m\r\n`)
         }
@@ -199,12 +225,37 @@ export function TerminalCard({
     // Wire PTY output → xterm
     const removeDataListener = window.sorbet.pty.onData(sessionId, (data) => {
       term.write(data)
+      const isSessionActive = useSorbetStore.getState().activeSessionId === sessionId
+
+      updateSession(sessionId, {
+        lastActivityAt: Date.now(),
+        status: 'active',
+        hasUnreadOutput: !isSessionActive,
+      })
+
+      if (activityTimeoutRef.current !== null) {
+        window.clearTimeout(activityTimeoutRef.current)
+      }
+
+      activityTimeoutRef.current = window.setTimeout(() => {
+        const currentSession = useSorbetStore.getState().sessions.find((item) => item.id === sessionId)
+        if (currentSession?.isAlive) {
+          updateSession(sessionId, { status: 'idle' })
+        }
+      }, 1200)
     })
 
     // Wire PTY exit
     const removeExitListener = window.sorbet.pty.onExit(sessionId, () => {
-      updateSession(sessionId, { isAlive: false })
+      updateSession(sessionId, { isAlive: false, status: 'exited' })
       term.write('\r\n\x1b[90m[Process exited]\x1b[0m\r\n')
+    })
+
+    const removeMetadataListener = window.sorbet.pty.onMetadata(sessionId, (metadata) => {
+      updateSession(sessionId, {
+        shellName: metadata.shellName,
+        cwd: metadata.cwd,
+      })
     })
 
     // Wire xterm input → PTY
@@ -220,6 +271,7 @@ export function TerminalCard({
     cleanupRef.current = [
       removeDataListener,
       removeExitListener,
+      removeMetadataListener,
       () => dataDisposable.dispose(),
       () => titleDisposable.dispose(),
       () => {
@@ -228,6 +280,9 @@ export function TerminalCard({
         }
         if (resizeTimeoutRef.current !== null) {
           window.clearTimeout(resizeTimeoutRef.current)
+        }
+        if (activityTimeoutRef.current !== null) {
+          window.clearTimeout(activityTimeoutRef.current)
         }
       },
       () => term.dispose(),
@@ -352,6 +407,11 @@ export function TerminalCard({
   }, [focusTerminalDom, isActive])
 
   useEffect(() => {
+    if (!isActive || !session?.hasUnreadOutput) return
+    updateSession(sessionId, { hasUnreadOutput: false })
+  }, [isActive, session?.hasUnreadOutput, sessionId, updateSession])
+
+  useEffect(() => {
     if (!isEditingTitle) {
       setDraftTitle(displayTitle)
     }
@@ -439,7 +499,7 @@ export function TerminalCard({
       <div
         className={`grid items-center px-3 flex-shrink-0 select-none cursor-default ${isPinned ? '' : 'drag-handle'}`}
         style={{
-          height: '32px',
+          minHeight: '44px',
           background: theme.background,
           borderBottom: `1px solid #27272a`,
           gridTemplateColumns: '72px minmax(0, 1fr) 72px',
@@ -471,52 +531,105 @@ export function TerminalCard({
         </div>
 
         {/* Session title */}
-        <div className="flex items-center justify-center min-w-0">
-          <div className="flex items-center justify-center gap-2 min-w-0 max-w-[220px]">
-            <span
-              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-              style={{ background: theme.accent }}
-              title={isUsingCustomTheme ? `${theme.name} theme` : `Inheriting ${workspaceTheme.name}`}
-            />
-            {isEditingTitle ? (
-              <input
-                className="title-editor pointer-events-auto w-full px-2 py-0.5 rounded text-xs text-center outline-none"
-                style={{
-                  background: '#18181b',
-                  border: `1px solid ${theme.accent}55`,
-                  color: theme.foreground,
-                }}
-                value={draftTitle}
-                onChange={(e) => setDraftTitle(e.currentTarget.value)}
-                onBlur={handleTitleSubmit}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    handleTitleSubmit()
-                  }
-                  if (e.key === 'Escape') {
-                    e.preventDefault()
-                    setDraftTitle(displayTitle)
-                    setIsEditingTitle(false)
-                  }
-                }}
-                onMouseDown={(e) => e.stopPropagation()}
-                autoFocus
+        <div className="flex items-center justify-center min-w-0 py-1">
+          <div className="flex flex-col items-center justify-center min-w-0 max-w-[260px]">
+            <div className="flex items-center justify-center gap-2 min-w-0 w-full">
+              <span
+                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                style={{ background: theme.accent }}
+                title={isUsingCustomTheme ? `${theme.name} theme` : `Inheriting ${workspaceTheme.name}`}
               />
-            ) : (
-              <div
-                className="truncate px-1 text-xs font-medium text-center"
-                style={{ color: isActive ? theme.foreground : '#a1a1aa' }}
-                onDoubleClick={(e) => {
-                  e.stopPropagation()
-                  setDraftTitle(displayTitle)
-                  setIsEditingTitle(true)
+              {isEditingTitle ? (
+                <input
+                  className="title-editor pointer-events-auto w-full px-2 py-0.5 rounded text-xs text-center outline-none"
+                  style={{
+                    background: '#18181b',
+                    border: `1px solid ${theme.accent}55`,
+                    color: theme.foreground,
+                  }}
+                  value={draftTitle}
+                  onChange={(e) => setDraftTitle(e.currentTarget.value)}
+                  onBlur={handleTitleSubmit}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleTitleSubmit()
+                    }
+                    if (e.key === 'Escape') {
+                      e.preventDefault()
+                      setDraftTitle(displayTitle)
+                      setIsEditingTitle(false)
+                    }
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  autoFocus
+                />
+              ) : (
+                <div
+                  className="truncate px-1 text-xs font-medium text-center"
+                  style={{ color: isActive ? theme.foreground : '#a1a1aa' }}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation()
+                    setDraftTitle(displayTitle)
+                    setIsEditingTitle(true)
+                  }}
+                  title="Double-click to rename terminal"
+                >
+                  {displayTitle}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-center gap-1.5 min-w-0 w-full mt-0.5">
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-1.5 py-[1px] text-[9px] uppercase tracking-[0.16em] flex-shrink-0"
+                style={{
+                  color: statusColor,
+                  background: `${statusColor}18`,
+                  border: `1px solid ${statusColor}2e`,
                 }}
-                title="Double-click to rename terminal"
+                title={session?.lastActivityAt ? `Last activity at ${new Date(session.lastActivityAt).toLocaleTimeString()}` : statusLabel}
               >
-                {displayTitle}
-              </div>
-            )}
+                <span className="w-1 h-1 rounded-full" style={{ background: statusColor }} />
+                {statusLabel}
+              </span>
+              <span
+                className="truncate rounded-full px-1.5 py-[1px] text-[10px]"
+                style={{
+                  color: '#a1a1aa',
+                  background: '#141418',
+                  border: '1px solid #232329',
+                }}
+                title={session?.shellName || 'Default shell'}
+              >
+                {shellLabel}
+              </span>
+              <span
+                className="truncate rounded-full px-1.5 py-[1px] text-[10px]"
+                style={{
+                  maxWidth: '120px',
+                  color: '#a1a1aa',
+                  background: '#141418',
+                  border: '1px solid #232329',
+                }}
+                title={session?.cwd || 'Current working directory'}
+              >
+                {cwdLabel}
+              </span>
+              {session?.hasUnreadOutput && (
+                <span
+                  className="inline-flex items-center rounded-full px-1.5 py-[1px] text-[9px] uppercase tracking-[0.12em] flex-shrink-0"
+                  style={{
+                    color: theme.accent,
+                    background: `${theme.accent}18`,
+                    border: `1px solid ${theme.accent}2e`,
+                  }}
+                  title="Unread terminal output"
+                >
+                  Unread
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, Menu, MenuItemConstructorOptions, shell } 
 import * as path from 'path'
 import * as fs from 'fs'
 import * as pty from 'node-pty'
-import { spawn } from 'child_process'
+import { spawn, spawnSync } from 'child_process'
 import Store from 'electron-store'
 
 const isDev = !app.isPackaged
@@ -88,6 +88,8 @@ interface StoredSession {
   isMinimized?: boolean
   isPinned?: boolean
   themeId?: string
+  shellName?: string
+  cwd?: string
 }
 
 interface WorkspaceSnapshot {
@@ -114,6 +116,9 @@ interface WorkspaceState {
 interface PtySession {
   pty: pty.IPty
   sessionId: string
+  shellName: string
+  cwd: string
+  cwdPoller?: NodeJS.Timeout
 }
 
 const sessions = new Map<string, PtySession>()
@@ -162,7 +167,69 @@ function normalizeSession(raw: unknown): StoredSession | null {
     isMinimized: typeof session.isMinimized === 'boolean' ? session.isMinimized : false,
     isPinned: typeof session.isPinned === 'boolean' ? session.isPinned : false,
     themeId: typeof session.themeId === 'string' && session.themeId.trim() ? session.themeId : undefined,
+    shellName: typeof session.shellName === 'string' && session.shellName.trim() ? session.shellName : undefined,
+    cwd: typeof session.cwd === 'string' && session.cwd.trim() ? session.cwd : undefined,
   }
+}
+
+function readProcessCwd(pid: number): string | null {
+  if (!Number.isFinite(pid) || pid <= 0) return null
+
+  try {
+    if (process.platform === 'linux') {
+      return fs.readlinkSync(`/proc/${pid}/cwd`)
+    }
+
+    if (process.platform === 'darwin') {
+      const result = spawnSyncSafe('lsof', ['-a', '-d', 'cwd', '-p', String(pid), '-Fn'])
+      if (!result) return null
+      const cwdLine = result
+        .split('\n')
+        .find((line) => line.startsWith('n') && line.length > 1)
+      return cwdLine ? cwdLine.slice(1) : null
+    }
+  } catch {
+    return null
+  }
+
+  return null
+}
+
+function spawnSyncSafe(command: string, args: string[]) {
+  try {
+    const result = spawnSync(command, args, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+
+    if (result.error || result.status !== 0) {
+      return null
+    }
+
+    return result.stdout
+  } catch {
+    return null
+  }
+}
+
+function startCwdPolling(session: PtySession) {
+  if (session.cwdPoller) {
+    clearInterval(session.cwdPoller)
+  }
+
+  session.cwdPoller = setInterval(() => {
+    const nextCwd = readProcessCwd(session.pty.pid)
+    if (!nextCwd || nextCwd === session.cwd) return
+
+    session.cwd = nextCwd
+    const currentWindow = mainWindow
+    if (currentWindow && !currentWindow.isDestroyed()) {
+      currentWindow.webContents.send(`pty:metadata:${session.sessionId}`, {
+        shellName: session.shellName,
+        cwd: session.cwd,
+      })
+    }
+  }, 2000)
 }
 
 function normalizeWorkspaceSnapshot(raw: unknown, fallbackThemeId: string): WorkspaceSnapshot {
@@ -858,11 +925,13 @@ ipcMain.handle('pty:create', (event, sessionId: string, cols: number, rows: numb
 
   try {
     const shell = resolveShell()
+    const shellName = path.basename(shell.command)
+    const cwd = process.env.HOME || process.cwd()
     const ptyProcess = pty.spawn(shell.command, shell.args, {
       name: 'xterm-256color',
       cols: cols || 80,
       rows: rows || 24,
-      cwd: process.env.HOME || process.cwd(),
+      cwd,
       env: {
         ...process.env,
         SHELL: shell.command,
@@ -881,11 +950,24 @@ ipcMain.handle('pty:create', (event, sessionId: string, cols: number, rows: numb
       if (!mainWindow?.isDestroyed()) {
         mainWindow?.webContents.send(`pty:exit:${sessionId}`, { exitCode, signal })
       }
+      const currentSession = sessions.get(sessionId)
+      if (currentSession?.cwdPoller) {
+        clearInterval(currentSession.cwdPoller)
+      }
       sessions.delete(sessionId)
     })
 
-    sessions.set(sessionId, { pty: ptyProcess, sessionId })
-    return { success: true, pid: ptyProcess.pid }
+    const ptySession: PtySession = {
+      pty: ptyProcess,
+      sessionId,
+      shellName,
+      cwd,
+    }
+
+    sessions.set(sessionId, ptySession)
+    startCwdPolling(ptySession)
+
+    return { success: true, pid: ptyProcess.pid, shellName, cwd }
   } catch (err) {
     return { success: false, error: String(err) }
   }
@@ -911,6 +993,9 @@ ipcMain.on('pty:resize', (_event, sessionId: string, cols: number, rows: number)
 ipcMain.handle('pty:kill', (_event, sessionId: string) => {
   const session = sessions.get(sessionId)
   if (session) {
+    if (session.cwdPoller) {
+      clearInterval(session.cwdPoller)
+    }
     try { session.pty.kill() } catch {}
     sessions.delete(sessionId)
   }

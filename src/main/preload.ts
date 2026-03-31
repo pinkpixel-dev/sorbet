@@ -38,6 +38,13 @@ contextBridge.exposeInMainWorld('sorbet', {
       ipcRenderer.on(channel, handler)
       return () => ipcRenderer.removeListener(channel, handler)
     },
+
+    onMetadata: (sessionId: string, callback: (metadata: { shellName?: string; cwd?: string }) => void) => {
+      const channel = `pty:metadata:${sessionId}`
+      const handler = (_event: Electron.IpcRendererEvent, metadata: { shellName?: string; cwd?: string }) => callback(metadata)
+      ipcRenderer.on(channel, handler)
+      return () => ipcRenderer.removeListener(channel, handler)
+    },
   },
 
   // Persistent store

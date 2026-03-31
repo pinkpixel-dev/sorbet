@@ -29,6 +29,12 @@ electron_1.contextBridge.exposeInMainWorld('sorbet', {
             electron_1.ipcRenderer.on(channel, handler);
             return () => electron_1.ipcRenderer.removeListener(channel, handler);
         },
+        onMetadata: (sessionId, callback) => {
+            const channel = `pty:metadata:${sessionId}`;
+            const handler = (_event, metadata) => callback(metadata);
+            electron_1.ipcRenderer.on(channel, handler);
+            return () => electron_1.ipcRenderer.removeListener(channel, handler);
+        },
     },
     // Persistent store
     store: {

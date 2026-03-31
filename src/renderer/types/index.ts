@@ -12,12 +12,26 @@ export interface SorbetAPI {
     writeText: (text: string) => Promise<void>
   }
   pty: {
-    create: (sessionId: string, cols: number, rows: number) => Promise<{ success: boolean; pid?: number; error?: string }>
+    create: (
+      sessionId: string,
+      cols: number,
+      rows: number
+    ) => Promise<{
+      success: boolean
+      pid?: number
+      shellName?: string
+      cwd?: string
+      error?: string
+    }>
     write: (sessionId: string, data: string) => void
     resize: (sessionId: string, cols: number, rows: number) => void
     kill: (sessionId: string) => Promise<{ success: boolean }>
     onData: (sessionId: string, callback: (data: string) => void) => () => void
     onExit: (sessionId: string, callback: (info: { exitCode: number; signal: number }) => void) => () => void
+    onMetadata: (
+      sessionId: string,
+      callback: (metadata: { shellName?: string; cwd?: string }) => void
+    ) => () => void
   }
   store: {
     getLayout: () => Promise<LayoutItem[] | null>
@@ -60,6 +74,11 @@ export interface TerminalSession {
   isMinimized?: boolean
   isPinned?: boolean
   themeId?: string
+  shellName?: string
+  cwd?: string
+  status?: 'idle' | 'active' | 'exited'
+  hasUnreadOutput?: boolean
+  lastActivityAt?: number
 }
 
 export interface WorkspaceSnapshot {

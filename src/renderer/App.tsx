@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import GridLayout, { Layout } from 'react-grid-layout'
 import { TerminalCard } from './components/TerminalCard'
+import { CommandPalette, CommandPaletteItem } from './components/CommandPalette'
 import { ThemePicker } from './components/ThemePicker'
 import { useSorbetStore } from './store'
 import { builtInThemes, defaultTerminalPreferences, defaultTheme, mergeThemes } from './themes'
@@ -71,6 +72,7 @@ export default function App() {
   const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>([])
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string | null>(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState>(null)
   const {
     sessions,
@@ -149,6 +151,8 @@ export default function App() {
       isMinimized: false,
       isPinned: false,
       themeId: undefined,
+      status: 'idle',
+      hasUnreadOutput: false,
     }
     addSession(session, layoutItem)
   }, [addSession])
@@ -354,6 +358,17 @@ export default function App() {
     }).format(timestamp)
   }, [])
 
+  const focusSession = useCallback(
+    (sessionId: string) => {
+      const target = sessions.find((session) => session.id === sessionId)
+      if (target?.isMinimized) {
+        toggleMinimizeSession(sessionId)
+      }
+      setActiveSession(sessionId)
+    },
+    [sessions, setActiveSession, toggleMinimizeSession]
+  )
+
   const handleWorkspaceDialogSubmit = useCallback(async () => {
     if (!workspaceDialog) return
 
@@ -393,6 +408,20 @@ export default function App() {
   // Keyboard shortcut: Cmd/Ctrl+T to spawn new terminal
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setIsCommandPaletteOpen((open) => !open)
+        return
+      }
+
+      if (isCommandPaletteOpen) {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          setIsCommandPaletteOpen(false)
+        }
+        return
+      }
+
       if ((e.metaKey || e.ctrlKey) && e.key === 't') {
         e.preventDefault()
         spawnTerminal()
@@ -400,7 +429,81 @@ export default function App() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [spawnTerminal])
+  }, [isCommandPaletteOpen, spawnTerminal])
+
+  const commandPaletteItems = useMemo<CommandPaletteItem[]>(() => {
+    const workspaceCommands: CommandPaletteItem[] = workspaces.map((workspace) => ({
+      id: `workspace:${workspace.id}`,
+      title: workspace.id === currentWorkspaceId ? `Current Workspace: ${workspace.name}` : `Switch to ${workspace.name}`,
+      subtitle: `${workspace.snapshot.sessions.length} ${workspace.snapshot.sessions.length === 1 ? 'terminal' : 'terminals'} • Updated ${formatWorkspaceTimestamp(workspace.updatedAt)}`,
+      group: 'Workspace',
+      keywords: ['workspace', 'switch', 'restore', workspace.name],
+      run: () => {
+        void handleSwitchWorkspace(workspace.id)
+      },
+    }))
+
+    const themeCommands: CommandPaletteItem[] = availableThemes.map((option) => ({
+      id: `theme:${option.id}`,
+      title: option.id === theme.id ? `Current Theme: ${option.name}` : `Apply Theme: ${option.name}`,
+      subtitle: `Set the workspace theme to ${option.name}`,
+      group: 'Theme',
+      keywords: ['theme', 'appearance', option.name],
+      run: () => handleThemeChange(option.id),
+    }))
+
+    const sessionCommands: CommandPaletteItem[] = sessions.map((session) => ({
+      id: `session:${session.id}`,
+      title: session.isMinimized ? `Restore ${session.title}` : `Focus ${session.title}`,
+      subtitle: session.cwd || session.shellName || 'Terminal session',
+      group: 'Session',
+      keywords: ['terminal', 'session', 'focus', 'restore', session.title, session.cwd, session.shellName].filter(Boolean) as string[],
+      run: () => focusSession(session.id),
+    }))
+
+    return [
+      {
+        id: 'new-terminal',
+        title: 'New Terminal',
+        subtitle: 'Create a new terminal card on the canvas',
+        group: 'General',
+        keywords: ['new', 'terminal', 'session', 'create'],
+        run: spawnTerminal,
+      },
+      {
+        id: 'save-workspace',
+        title: 'Save Workspace As',
+        subtitle: 'Create a named snapshot from the current canvas',
+        group: 'General',
+        keywords: ['save', 'workspace', 'snapshot'],
+        run: openSaveWorkspaceDialog,
+      },
+      {
+        id: 'toggle-sidebar',
+        title: isSidebarOpen ? 'Hide Workspace Sidebar' : 'Show Workspace Sidebar',
+        subtitle: 'Toggle the saved workspaces sidebar',
+        group: 'View',
+        keywords: ['sidebar', 'workspaces', 'toggle', 'show', 'hide'],
+        run: () => setIsSidebarOpen((open) => !open),
+      },
+      ...workspaceCommands,
+      ...themeCommands,
+      ...sessionCommands,
+    ]
+  }, [
+    availableThemes,
+    currentWorkspaceId,
+    focusSession,
+    formatWorkspaceTimestamp,
+    handleSwitchWorkspace,
+    handleThemeChange,
+    isSidebarOpen,
+    openSaveWorkspaceDialog,
+    sessions,
+    spawnTerminal,
+    theme.id,
+    workspaces,
+  ])
 
   return (
     <div
@@ -595,6 +698,20 @@ export default function App() {
           title="Save current workspace as a named preset"
         >
           Save Workspace
+        </button>
+
+        <button
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors"
+          style={{
+            background: 'transparent',
+            border: '1px solid #3f3f46',
+            color: '#71717a',
+            WebkitAppRegion: 'no-drag',
+          } as React.CSSProperties}
+          onClick={() => setIsCommandPaletteOpen(true)}
+          title="Open command palette (⌘K)"
+        >
+          Commands
         </button>
 
         <div className="flex-1" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties} />
@@ -808,6 +925,13 @@ export default function App() {
           </div>
         </div>
       )}
+
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        accentColor={theme.accent}
+        items={commandPaletteItems}
+        onClose={() => setIsCommandPaletteOpen(false)}
+      />
       </div>
     </div>
   )

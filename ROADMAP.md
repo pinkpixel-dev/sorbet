@@ -12,8 +12,8 @@ Ordered from the strongest foundational work to the heavier expansion features:
 - [x] Sidebar for saved workspaces
 - [x] Window pinning and layout locking
 - [x] Per-window themes and color identity
-- [ ] Session metadata and status
-- [ ] Commands and command palette
+- [x] Session metadata and status
+- [x] Commands and command palette
 - [ ] Workspace templates
 - [ ] Project-aware workspaces
 - [ ] Workspace actions and startup scripts
@@ -135,6 +135,8 @@ Why it matters:
 
 Improve at-a-glance understanding of each card.
 
+Status: Implemented.
+
 Potential scope:
 
 - activity indicators
@@ -152,6 +154,8 @@ Why it matters:
 ### 6. Commands and Command Palette
 
 A command palette would make a lot of roadmap functionality easier to access.
+
+Status: Implemented.
 
 Potential scope:
 

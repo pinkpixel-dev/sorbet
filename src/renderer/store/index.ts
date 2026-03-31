@@ -76,6 +76,9 @@ export const useSorbetStore = create<SorbetStore>((set) => ({
         isAlive: false,
         isPinned: session.isPinned ?? false,
         themeId: session.themeId,
+        status: 'idle',
+        hasUnreadOutput: false,
+        lastActivityAt: undefined,
       })),
       activeSessionId: snapshot.sessions.find((session) => !session.isMinimized)?.id ?? snapshot.layout[0]?.i ?? null,
       maximizedSessionId: null,
@@ -130,6 +133,9 @@ export const useSorbetStore = create<SorbetStore>((set) => ({
       sessions: state.sessions.map((session) => ({
         ...session,
         isAlive: false,
+        status: session.isAlive ? 'idle' : session.status,
+        hasUnreadOutput: false,
+        lastActivityAt: undefined,
       })),
       themeId: state.themeId,
     }

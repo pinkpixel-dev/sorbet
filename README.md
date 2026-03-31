@@ -8,7 +8,7 @@
 
 It is especially useful for running multiple CLI agents side by side in one tiling workspace. Tools like Claude Code CLI, OpenAI Codex CLI, GitHub Copilot CLI, Amazon Kiro CLI, Google Gemini CLI, OpenCode, and similar agent-driven terminal tools become much more powerful when you can keep several sessions visible at once for coding, research, debugging, review, or general help with tasks on your computer.
 
-Sorbet now includes named saved workspaces, a workspace sidebar, pinned terminal windows, and per-window theme identity on top of the `1.0.0` foundation of PTY-backed sessions, theming, preferences, and desktop packaging.
+Sorbet now includes named saved workspaces, a workspace sidebar, pinned terminal windows, session metadata, and a command palette on top of the `1.0.0` foundation of PTY-backed sessions, theming, preferences, and desktop packaging.
 
 ## Highlights
 
@@ -19,6 +19,7 @@ Sorbet now includes named saved workspaces, a workspace sidebar, pinned terminal
 - Window pinning and layout locking for terminal cards
 - Per-window themes with inheritable workspace defaults and color identity
 - Persistent workspace layout, workspace theme, and per-window theme overrides
+- Command palette for quickly running app actions, switching workspaces, changing themes, and focusing sessions
 - Minimize, maximize, restore, and close controls for each terminal window
 - Editable terminal titles with a hover affordance
 - Seven bundled themes, including the new default `Sorbet` theme
@@ -69,6 +70,7 @@ Sorbet now includes named saved workspaces, a workspace sidebar, pinned terminal
 - Rename and delete saved workspaces
 - Preserve terminal metadata such as titles, minimized state, and pinned state inside saved workspaces
 - Preserve per-window theme overrides inside saved workspaces
+- Open a searchable command palette with `Cmd/Ctrl+K`
 
 ### Terminal behavior
 
@@ -77,6 +79,7 @@ Sorbet now includes named saved workspaces, a workspace sidebar, pinned terminal
 - Automatic PTY resize when cards change size
 - Editable session names
 - Shell-driven title updates via escape sequences
+- Live session metadata for shell, working directory, activity state, and unread output
 - Click-to-focus terminal behavior
 - Web links opened in the system browser
 - Clipboard support:
