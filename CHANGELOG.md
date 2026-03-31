@@ -7,11 +7,13 @@
 - Added direct `v1.1.0` package download links for Linux and Windows to the README and release notes, and refreshed the supporting docs to match
 - Added a GitHub Actions Linux packaging workflow on `ubuntu-22.04` so public `AppImage`, `deb`, and `rpm` artifacts are built from a more compatible glibc baseline than rolling-release local builds
 - Updated the Linux packaging workflow to install ImageMagick so the release build can regenerate icon assets on GitHub-hosted Ubuntu runners
+- Updated packaging scripts to pass `--publish never` to electron-builder so CI builds and manual release scripts do not trigger implicit GitHub publishing during artifact creation
 
 ### Fixed
 
 - Documented and hardened the Linux release process around `node-pty` so Mint and Ubuntu users are less likely to hit startup failures caused by binaries compiled on newer distros such as Arch
 - Made the icon-generation script accept either ImageMagick's `magick` or `convert` CLI so Linux CI builds do not fail on Ubuntu runner command-name differences
+- Fixed the custom RPM packaging script so it stages files outside rpmbuild's `%{buildroot}` and no longer tries to copy the build root into itself during `%install`
 
 ## 1.1.0 - 2026-03-31
 

@@ -292,7 +292,7 @@ The icon set used by the packaged app and installers is generated from `assets/i
 npm run icons
 ```
 
-Windows installers are built in GitHub Actions from `.github/workflows/windows-installer.yml` and uploaded as workflow artifacts. Linux packages are built in GitHub Actions from [`.github/workflows/linux-packages.yml`](.github/workflows/linux-packages.yml) on `ubuntu-22.04` for broader distro compatibility, and that workflow installs both ImageMagick and RPM tooling because the release scripts regenerate icon assets during every build. The icon generator accepts either the newer `magick` CLI or the classic `convert` CLI so Ubuntu runners do not fail on binary-name differences alone. On release events, both workflows upload their generated artifacts to the GitHub release.
+Windows installers are built in GitHub Actions from `.github/workflows/windows-installer.yml` and uploaded as workflow artifacts. Linux packages are built in GitHub Actions from [`.github/workflows/linux-packages.yml`](.github/workflows/linux-packages.yml) on `ubuntu-22.04` for broader distro compatibility, and that workflow installs both ImageMagick and RPM tooling because the release scripts regenerate icon assets during every build. The icon generator accepts either the newer `magick` CLI or the classic `convert` CLI so Ubuntu runners do not fail on binary-name differences alone. The release scripts also pass `--publish never` to electron-builder because GitHub Actions handles artifact uploads explicitly after the build completes. On release events, both workflows upload their generated artifacts to the GitHub release.
 
 ## Release Notes
 

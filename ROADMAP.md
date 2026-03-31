@@ -59,6 +59,7 @@ When evaluating roadmap items, prioritize work that supports these goals:
 - Prefer reproducible release workflows, especially for Linux native modules, so packaged builds stay compatible across mainstream distributions.
 - Keep CI release workflows self-contained so required packaging tools such as icon generators are installed explicitly instead of depending on runner defaults.
 - Prefer portable packaging scripts that tolerate equivalent tool entrypoints across distros instead of assuming one binary name everywhere.
+- Keep release automation explicit about artifact publishing and temporary staging layouts so packaging behavior stays predictable across CI environments.
 
 ## Near-Term Priorities
 

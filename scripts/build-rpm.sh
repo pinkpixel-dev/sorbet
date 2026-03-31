@@ -41,10 +41,10 @@ case "$TARGET_ARCH" in
 esac
 
 TOPDIR="$(mktemp -d)"
-BUILDROOT="$TOPDIR/BUILDROOT"
+STAGING_ROOT="$TOPDIR/staging-root"
 SPEC_DIR="$TOPDIR/SPECS"
 RPM_OUT_DIR="$TOPDIR/RPMS/$RPM_ARCH"
-APP_INSTALL_DIR="$BUILDROOT/opt/$PRODUCT_NAME"
+APP_INSTALL_DIR="$STAGING_ROOT/opt/$PRODUCT_NAME"
 
 cleanup() {
   rm -rf "$TOPDIR"
@@ -52,17 +52,17 @@ cleanup() {
 
 trap cleanup EXIT
 
-mkdir -p "$APP_INSTALL_DIR" "$SPEC_DIR" "$RPM_OUT_DIR" "$BUILDROOT/usr/share/applications"
+mkdir -p "$APP_INSTALL_DIR" "$SPEC_DIR" "$RPM_OUT_DIR" "$STAGING_ROOT/usr/share/applications"
 cp -a "$APP_DIR/." "$APP_INSTALL_DIR/"
 
 for icon_path in "$ICON_DIR"/*.png; do
   size="$(basename "$icon_path" .png)"
-  destination_dir="$BUILDROOT/usr/share/icons/hicolor/$size/apps"
+  destination_dir="$STAGING_ROOT/usr/share/icons/hicolor/$size/apps"
   mkdir -p "$destination_dir"
   cp "$icon_path" "$destination_dir/sorbet.png"
 done
 
-cat > "$BUILDROOT/usr/share/applications/sorbet.desktop" <<EOF
+cat > "$STAGING_ROOT/usr/share/applications/sorbet.desktop" <<EOF
 [Desktop Entry]
 Name=Sorbet
 Comment=$DESCRIPTION
@@ -89,7 +89,7 @@ $DESCRIPTION
 
 %install
 mkdir -p %{buildroot}
-cp -a $BUILDROOT/. %{buildroot}/
+cp -a $STAGING_ROOT/. %{buildroot}/
 
 %files
 /opt/$PRODUCT_NAME
