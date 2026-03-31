@@ -20,6 +20,7 @@ Ordered from the strongest foundational work to the heavier expansion features:
 - [x] Terminal lifecycle hardening and layout-snapshot sanitization
 - [x] Atomic workspace switching and workspace-scoped persistence guards
 - [x] Reliable dev-runner shutdown for Electron, Vite, and watch processes
+- [x] Explicit last-window quit behavior and PTY timer cleanup for reliable shutdown
 - [ ] Browser windows in the workspace
 - [ ] Filesystem windows
 - [ ] Text editor windows

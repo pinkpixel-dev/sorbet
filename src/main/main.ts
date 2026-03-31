@@ -468,6 +468,7 @@ function startCwdPolling(session: PtySession) {
       })
     }
   }, 2000)
+  session.cwdPoller.unref?.()
 }
 
 function normalizeWorkspaceSnapshot(raw: unknown, fallbackThemeId: string): WorkspaceSnapshot {
@@ -851,6 +852,7 @@ function queueStartupCommand(ptyProcess: pty.IPty, command?: string) {
 
 // ─── Window ───────────────────────────────────────────────────────────────────
 let mainWindow: BrowserWindow | null = null
+let isQuittingApp = false
 
 function getWindowIconPath() {
   return path.join(__dirname, '../../assets/icons/png/512x512.png')
@@ -870,6 +872,35 @@ function getThemesDirectoryPath() {
 
 function writePrettyJson(filePath: string, value: unknown) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+}
+
+function cleanupPtySessions() {
+  sessions.forEach((session) => {
+    if (session.cwdPoller) {
+      clearInterval(session.cwdPoller)
+      session.cwdPoller = undefined
+    }
+    try { session.pty.kill() } catch {}
+  })
+  sessions.clear()
+}
+
+function stopConfigWatchers() {
+  fs.unwatchFile(getPreferencesPath())
+  themeDirectoryWatcher?.close()
+  themeDirectoryWatcher = null
+  if (configChangedTimeout) {
+    clearTimeout(configChangedTimeout)
+    configChangedTimeout = null
+  }
+}
+
+function prepareForAppQuit() {
+  if (isQuittingApp) return
+
+  isQuittingApp = true
+  cleanupPtySessions()
+  stopConfigWatchers()
 }
 
 function createPreferencesTemplate(overrides: Partial<typeof defaultPreferences> = {}) {
@@ -985,6 +1016,7 @@ function scheduleConfigChangedBroadcast() {
     configChangedTimeout = null
     broadcastConfigChanged()
   }, 150)
+  configChangedTimeout.unref?.()
 }
 
 function startConfigWatchers() {
@@ -1362,12 +1394,17 @@ function createWindow() {
     }
   }, 1500)
 
+  mainWindow.on('close', (event) => {
+    const isLastWindow = BrowserWindow.getAllWindows().length <= 1
+    if (!isLastWindow || isQuittingApp) return
+
+    event.preventDefault()
+    prepareForAppQuit()
+    void app.quit()
+  })
+
   mainWindow.on('closed', () => {
-    // Kill all PTY sessions when window closes
-    sessions.forEach((session) => {
-      try { session.pty.kill() } catch {}
-    })
-    sessions.clear()
+    cleanupPtySessions()
     mainWindow = null
   })
 
@@ -1424,6 +1461,7 @@ ipcMain.handle(
       const currentSession = sessions.get(sessionId)
       if (currentSession?.cwdPoller) {
         clearInterval(currentSession.cwdPoller)
+        currentSession.cwdPoller = undefined
       }
       sessions.delete(sessionId)
     })
@@ -1467,6 +1505,7 @@ ipcMain.handle('pty:kill', (_event, sessionId: string) => {
   if (session) {
     if (session.cwdPoller) {
       clearInterval(session.cwdPoller)
+      session.cwdPoller = undefined
     }
     try { session.pty.kill() } catch {}
     sessions.delete(sessionId)
@@ -1747,15 +1786,10 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
+  prepareForAppQuit()
+  app.quit()
 })
 
 app.on('before-quit', () => {
-  fs.unwatchFile(getPreferencesPath())
-  themeDirectoryWatcher?.close()
-  themeDirectoryWatcher = null
-  if (configChangedTimeout) {
-    clearTimeout(configChangedTimeout)
-    configChangedTimeout = null
-  }
+  prepareForAppQuit()
 })

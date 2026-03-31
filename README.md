@@ -219,7 +219,7 @@ This launches:
 
 Sorbet now prints the selected port at startup, for example `Using Sorbet dev port 38173`, and reuses that same value for both Vite and Electron during the session.
 
-When the Electron app window closes, the full dev session now exits automatically. `Ctrl+C` in the terminal also tears down the full process tree so Vite, the TypeScript watcher, and Electron do not keep the dev port occupied.
+When the last Sorbet window closes, the app now requests a full Electron quit on every platform instead of leaving the process resident with no visible window. Sorbet also clears the PTY cwd polling timers during shutdown so `npm start` exits cleanly and the next launch is not blocked by a lingering background process. `Ctrl+C` in the terminal still tears down the full process tree so Vite, the TypeScript watcher, and Electron do not keep the dev port occupied.
 
 You can also run the pieces separately if needed:
 

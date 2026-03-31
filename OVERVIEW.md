@@ -51,8 +51,10 @@ This directory contains the Electron main process and preload bridge.
 - `main.ts`
   - creates the `BrowserWindow`
   - configures Electron lifecycle behavior
+  - quits the full app when the last Sorbet window closes on any platform
   - selects and spawns shell processes with `node-pty`
   - owns the PTY session map
+  - clears PTY cwd polling timers during session teardown so Electron can fully exit
   - forwards PTY output and exit events to the renderer
   - persists saved workspaces, layout snapshots, selected workspace theme, and per-window theme overrides
   - owns the built-in workspace template catalog, persists custom templates, and creates new workspaces from template snapshots

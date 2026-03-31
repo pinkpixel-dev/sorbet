@@ -28,6 +28,8 @@
 ### Fixed
 
 - Development shutdown leaving orphaned Vite and watch processes behind after `Ctrl+C` or closing the Electron window, which kept the dev port occupied on the next launch
+- Last-window close behavior leaving Sorbet resident without a visible window on some platforms, which kept `npm start` and packaged launches from fully terminating
+- PTY cwd polling intervals surviving session-map cleanup during shutdown, which could keep Electron alive after the window had already closed
 - Workspace switching races that let restored terminals mount against a stale workspace record, causing project paths, themes, and startup directories to bleed across workspaces
 - Workspace snapshot updates for non-current workspaces overwriting the global live layout/theme cache used by the active workspace
 - Terminal resize/focus races that could leave xterm.js trying to measure a disposed terminal and repeatedly throwing `Cannot read properties of undefined (reading 'dimensions')`

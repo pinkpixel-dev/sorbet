@@ -4,7 +4,8 @@ const path = require('node:path')
 
 const projectRoot = path.resolve(__dirname, '..')
 const isWindows = process.platform === 'win32'
-const npmCommand = isWindows ? 'npm.cmd' : 'npm'
+const nodeBinary = process.execPath
+const tscBinary = path.join(projectRoot, 'node_modules', '.bin', isWindows ? 'tsc.cmd' : 'tsc')
 
 function terminateChild(child, signal = 'SIGTERM') {
   if (!child || child.exitCode !== null || child.signalCode !== null) {
@@ -51,8 +52,8 @@ function findAvailablePort(preferredPort) {
   })
 }
 
-function spawnChild(label, script, env) {
-  const child = spawn(npmCommand, ['run', script], {
+function spawnChild(label, command, args, env) {
+  const child = spawn(command, args, {
     cwd: projectRoot,
     env,
     stdio: 'inherit',
@@ -79,9 +80,9 @@ async function main() {
   console.log(`Using Sorbet dev port ${selectedPort}`)
 
   const children = [
-    spawnChild('renderer', 'dev:renderer', env),
-    spawnChild('main', 'dev:main', env),
-    spawnChild('electron', 'electron', env),
+    spawnChild('renderer', nodeBinary, [path.join(projectRoot, 'scripts', 'run-vite-dev.cjs')], env),
+    spawnChild('main', tscBinary, ['-p', 'tsconfig.main.json', '--watch'], env),
+    spawnChild('electron', nodeBinary, [path.join(projectRoot, 'scripts', 'start-electron.cjs')], env),
   ]
 
   let shuttingDown = false

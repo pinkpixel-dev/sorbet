@@ -346,6 +346,7 @@ function startCwdPolling(session) {
             });
         }
     }, 2000);
+    session.cwdPoller.unref?.();
 }
 function normalizeWorkspaceSnapshot(raw, fallbackThemeId) {
     const data = raw && typeof raw === 'object' ? raw : {};
@@ -646,6 +647,7 @@ function queueStartupCommand(ptyProcess, command) {
 }
 // ─── Window ───────────────────────────────────────────────────────────────────
 let mainWindow = null;
+let isQuittingApp = false;
 function getWindowIconPath() {
     return path.join(__dirname, '../../assets/icons/png/512x512.png');
 }
@@ -660,6 +662,35 @@ function getThemesDirectoryPath() {
 }
 function writePrettyJson(filePath, value) {
     fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
+function cleanupPtySessions() {
+    sessions.forEach((session) => {
+        if (session.cwdPoller) {
+            clearInterval(session.cwdPoller);
+            session.cwdPoller = undefined;
+        }
+        try {
+            session.pty.kill();
+        }
+        catch { }
+    });
+    sessions.clear();
+}
+function stopConfigWatchers() {
+    fs.unwatchFile(getPreferencesPath());
+    themeDirectoryWatcher?.close();
+    themeDirectoryWatcher = null;
+    if (configChangedTimeout) {
+        clearTimeout(configChangedTimeout);
+        configChangedTimeout = null;
+    }
+}
+function prepareForAppQuit() {
+    if (isQuittingApp)
+        return;
+    isQuittingApp = true;
+    cleanupPtySessions();
+    stopConfigWatchers();
 }
 function createPreferencesTemplate(overrides = {}) {
     return {
@@ -762,6 +793,7 @@ function scheduleConfigChangedBroadcast() {
         configChangedTimeout = null;
         broadcastConfigChanged();
     }, 150);
+    configChangedTimeout.unref?.();
 }
 function startConfigWatchers() {
     if (themeDirectoryWatcher)
@@ -1102,15 +1134,16 @@ function createWindow() {
             mainWindow.show();
         }
     }, 1500);
+    mainWindow.on('close', (event) => {
+        const isLastWindow = electron_1.BrowserWindow.getAllWindows().length <= 1;
+        if (!isLastWindow || isQuittingApp)
+            return;
+        event.preventDefault();
+        prepareForAppQuit();
+        void electron_1.app.quit();
+    });
     mainWindow.on('closed', () => {
-        // Kill all PTY sessions when window closes
-        sessions.forEach((session) => {
-            try {
-                session.pty.kill();
-            }
-            catch { }
-        });
-        sessions.clear();
+        cleanupPtySessions();
         mainWindow = null;
     });
     // Open external links in browser
@@ -1153,6 +1186,7 @@ electron_1.ipcMain.handle('pty:create', (_event, sessionId, cols, rows, options)
             const currentSession = sessions.get(sessionId);
             if (currentSession?.cwdPoller) {
                 clearInterval(currentSession.cwdPoller);
+                currentSession.cwdPoller = undefined;
             }
             sessions.delete(sessionId);
         });
@@ -1197,6 +1231,7 @@ electron_1.ipcMain.handle('pty:kill', (_event, sessionId) => {
     if (session) {
         if (session.cwdPoller) {
             clearInterval(session.cwdPoller);
+            session.cwdPoller = undefined;
         }
         try {
             session.pty.kill();
@@ -1414,15 +1449,9 @@ electron_1.app.whenReady().then(() => {
     });
 });
 electron_1.app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin')
-        electron_1.app.quit();
+    prepareForAppQuit();
+    electron_1.app.quit();
 });
 electron_1.app.on('before-quit', () => {
-    fs.unwatchFile(getPreferencesPath());
-    themeDirectoryWatcher?.close();
-    themeDirectoryWatcher = null;
-    if (configChangedTimeout) {
-        clearTimeout(configChangedTimeout);
-        configChangedTimeout = null;
-    }
+    prepareForAppQuit();
 });
