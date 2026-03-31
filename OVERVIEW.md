@@ -121,8 +121,10 @@ This directory contains the UI and renderer-side app state.
   - generates Linux PNG icon sizes and the Windows `.ico` file from `assets/icon.png`
 - `scripts/build-rpm.sh`
   - creates the Linux `.rpm` package from the unpacked Electron build
+- `.github/workflows/linux-packages.yml`
+  - builds Linux `AppImage`, `deb`, and `rpm` artifacts on `ubuntu-22.04` so native modules such as `node-pty` target a more portable glibc baseline
 - `README.md`
-  - user-facing project overview and setup instructions
+  - user-facing project overview, setup instructions, and direct current-release package download links
 - `CHANGELOG.md`
   - release history
 
@@ -468,4 +470,5 @@ npm run dist:win
 - Electron starts only after the renderer server and compiled main files are ready.
 - Closing the Electron window ends the full `npm run dev` session.
 - Linux release packaging emits `AppImage`, `deb`, and `rpm` artifacts into `release/`.
+- Public Linux release artifacts should be built on `ubuntu-22.04` or through `.github/workflows/linux-packages.yml` because `AppImage` still relies on the host glibc for native modules like `node-pty`.
 - Windows installers are built as NSIS `.exe` packages through GitHub Actions.

@@ -2,7 +2,14 @@
 
 ## Unreleased
 
-_Nothing yet._
+### Changed
+
+- Added direct `v1.1.0` package download links for Linux and Windows to the README and release notes, and refreshed the supporting docs to match
+- Added a GitHub Actions Linux packaging workflow on `ubuntu-22.04` so public `AppImage`, `deb`, and `rpm` artifacts are built from a more compatible glibc baseline than rolling-release local builds
+
+### Fixed
+
+- Documented and hardened the Linux release process around `node-pty` so Mint and Ubuntu users are less likely to hit startup failures caused by binaries compiled on newer distros such as Arch
 
 ## 1.1.0 - 2026-03-31
 

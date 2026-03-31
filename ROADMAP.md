@@ -4,6 +4,8 @@ This document outlines a practical forward-looking roadmap for `Sorbet` after `v
 
 It is intended to guide product direction, help prioritize development, and give contributors a shared view of where the workspace experience can go next. The roadmap is aspirational rather than a strict promise, and priorities may shift based on user feedback, implementation complexity, and platform constraints.
 
+Current release download links are tracked in `README.md` and the release notes so this document can stay focused on forward-looking product work.
+
 ## Implementation Checklist
 
 Ordered from the strongest foundational work to the heavier expansion features:
@@ -54,6 +56,7 @@ When evaluating roadmap items, prioritize work that supports these goals:
 - Prefer features that make agent-driven workflows easier to supervise and verify.
 - Make advanced behavior optional through preferences rather than mandatory UI complexity.
 - Extend the current Electron + preload + renderer architecture cleanly and safely.
+- Prefer reproducible release workflows, especially for Linux native modules, so packaged builds stay compatible across mainstream distributions.
 
 ## Near-Term Priorities
 

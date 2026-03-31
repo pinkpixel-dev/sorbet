@@ -181,15 +181,20 @@ Then run:
 sorbet
 ```
 
-### Linux release artifacts
+### Release downloads
 
-For `v1.1.0`, Sorbet publishes Linux desktop packages in these formats:
+For `v1.1.0`, Sorbet publishes these desktop packages:
 
-- `AppImage`
-- `deb`
-- `rpm`
+| Platform | Format | Download |
+| --- | --- | --- |
+| Linux | `AppImage` | [`Sorbet-1.1.0-linux-x86_64.AppImage`](https://pub-d1f6a15378d54bd8b9b38b281f552889.r2.dev/Sorbet-1.1.0-linux-x86_64.AppImage) |
+| Linux | `deb` | [`Sorbet-1.1.0-linux-amd64.deb`](https://pub-d1f6a15378d54bd8b9b38b281f552889.r2.dev/Sorbet-1.1.0-linux-amd64.deb) |
+| Linux | `rpm` | [`Sorbet-1.1.0-linux-x86_64.rpm`](https://pub-d1f6a15378d54bd8b9b38b281f552889.r2.dev/Sorbet-1.1.0-linux-x86_64.rpm) |
+| Windows | `exe` | [`Sorbet-1.1.0-windows-x64.exe`](https://pub-d1f6a15378d54bd8b9b38b281f552889.r2.dev/Sorbet-1.1.0-windows-x64.exe) |
 
-The Windows installer is built separately in GitHub Actions as a `.exe` artifact.
+Windows installers are still produced through GitHub Actions for the release pipeline; the link above points to the published `v1.1.0` installer artifact.
+
+For broad Linux compatibility, public `AppImage`, `deb`, and `rpm` artifacts should be built on `ubuntu-22.04` or through [`.github/workflows/linux-packages.yml`](.github/workflows/linux-packages.yml). Native modules such as `node-pty` are compiled against the build host's glibc, and `AppImage` does not bundle glibc, so packages built on newer rolling-release distros can fail to start on Mint or Ubuntu systems.
 
 ## Development
 
@@ -277,6 +282,8 @@ These generate Linux packages in `release/` for:
 - `deb`
 - `rpm`
 
+If you are producing Linux artifacts for distribution, run those commands on `ubuntu-22.04` or use the GitHub Actions workflow in [`.github/workflows/linux-packages.yml`](.github/workflows/linux-packages.yml). Building on a newer distro such as Arch can compile `node-pty` against a newer glibc than Mint or Ubuntu users have available, and `AppImage` will not mask that mismatch.
+
 For the `arm64` release, run the command on an `arm64` Linux machine or runner so native modules such as `node-pty` rebuild for the correct target architecture.
 
 The icon set used by the packaged app and installers is generated from `assets/icon.png` with:
@@ -285,7 +292,7 @@ The icon set used by the packaged app and installers is generated from `assets/i
 npm run icons
 ```
 
-Windows installers are built in GitHub Actions from `.github/workflows/windows-installer.yml` and uploaded as workflow artifacts. On release events, the workflow also uploads the generated `.exe` file to the GitHub release.
+Windows installers are built in GitHub Actions from `.github/workflows/windows-installer.yml` and uploaded as workflow artifacts. Linux packages are built in GitHub Actions from [`.github/workflows/linux-packages.yml`](.github/workflows/linux-packages.yml) on `ubuntu-22.04` for broader distro compatibility. On release events, both workflows upload their generated artifacts to the GitHub release.
 
 ## Release Notes
 
