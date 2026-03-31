@@ -105,6 +105,106 @@ let configChangedTimeout = null;
 function createId(prefix) {
     return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
+function getFallbackThemeId() {
+    return typeof store.get('theme') === 'string'
+        ? String(store.get('theme'))
+        : defaultPreferences.defaultThemeId;
+}
+function createTemplateLayoutItem(id, x, y, w, h, options = {}) {
+    return {
+        i: id,
+        x,
+        y,
+        w,
+        h,
+        minW: options.minW ?? 12,
+        minH: options.minH ?? 16,
+    };
+}
+function createTemplateSession(id, title, options = {}) {
+    return {
+        id,
+        title,
+        isAlive: false,
+        createdAt: 0,
+        isMinimized: options.isMinimized ?? false,
+        isPinned: options.isPinned ?? false,
+        themeId: options.themeId,
+        shellName: undefined,
+        cwd: undefined,
+    };
+}
+function createWorkspaceTemplate(id, name, description, category, accent, suggestedWorkspaceName, snapshot) {
+    return {
+        id,
+        name,
+        description,
+        category,
+        accent,
+        suggestedWorkspaceName,
+        snapshot: normalizeWorkspaceSnapshot(snapshot, snapshot.themeId || defaultPreferences.defaultThemeId),
+    };
+}
+const builtInWorkspaceTemplates = [
+    createWorkspaceTemplate('full-stack', 'Full-Stack Flow', 'A balanced four-terminal layout for app server work, frontend work, tests, and logs.', 'Development', '#ec4899', 'Full-Stack Workspace', {
+        themeId: 'sorbet',
+        layout: [
+            createTemplateLayoutItem('api', 0, 0, 24, 30),
+            createTemplateLayoutItem('web', 24, 0, 24, 30),
+            createTemplateLayoutItem('tests', 0, 30, 18, 22),
+            createTemplateLayoutItem('logs', 18, 30, 30, 22),
+        ],
+        sessions: [
+            createTemplateSession('api', 'API Server', { themeId: 'sorbet' }),
+            createTemplateSession('web', 'Web App', { themeId: 'tokyonight' }),
+            createTemplateSession('tests', 'Tests', { themeId: 'nord', isPinned: true }),
+            createTemplateSession('logs', 'Logs', { themeId: 'gruvbox' }),
+        ],
+    }),
+    createWorkspaceTemplate('monitoring', 'Server Monitoring', 'A supervision layout for long-running services, metrics, incident notes, and deploy output.', 'Operations', '#7aa2f7', 'Monitoring Workspace', {
+        themeId: 'dark',
+        layout: [
+            createTemplateLayoutItem('service', 0, 0, 20, 26),
+            createTemplateLayoutItem('metrics', 20, 0, 28, 26),
+            createTemplateLayoutItem('queue', 0, 26, 20, 26),
+            createTemplateLayoutItem('deploy', 20, 26, 28, 26),
+        ],
+        sessions: [
+            createTemplateSession('service', 'Primary Service', { themeId: 'dark' }),
+            createTemplateSession('metrics', 'Metrics Watch', { themeId: 'nord' }),
+            createTemplateSession('queue', 'Worker Queue', { themeId: 'dracula' }),
+            createTemplateSession('deploy', 'Deploy Tail', { themeId: 'tokyonight' }),
+        ],
+    }),
+    createWorkspaceTemplate('debugging', 'Debugging and Logs', 'A focused layout for reproduction, REPL work, trace output, and a pinned live log stream.', 'Diagnostics', '#f59e0b', 'Debug Workspace', {
+        themeId: 'tokyonight',
+        layout: [
+            createTemplateLayoutItem('app', 0, 0, 24, 34),
+            createTemplateLayoutItem('repl', 24, 0, 24, 20),
+            createTemplateLayoutItem('trace', 24, 20, 24, 14),
+            createTemplateLayoutItem('live-log', 0, 34, 48, 18),
+        ],
+        sessions: [
+            createTemplateSession('app', 'Repro Terminal', { themeId: 'tokyonight' }),
+            createTemplateSession('repl', 'Scratch REPL', { themeId: 'catppuccin' }),
+            createTemplateSession('trace', 'Trace Output', { themeId: 'dracula' }),
+            createTemplateSession('live-log', 'Live Logs', { themeId: 'gruvbox', isPinned: true }),
+        ],
+    }),
+    createWorkspaceTemplate('writing', 'Documentation Writing', 'A calmer three-pane setup for drafting, previewing, and keeping research notes visible.', 'Writing', '#c084fc', 'Documentation Workspace', {
+        themeId: 'catppuccin',
+        layout: [
+            createTemplateLayoutItem('draft', 0, 0, 22, 52),
+            createTemplateLayoutItem('preview', 22, 0, 26, 30),
+            createTemplateLayoutItem('research', 22, 30, 26, 22),
+        ],
+        sessions: [
+            createTemplateSession('draft', 'Drafting', { themeId: 'catppuccin' }),
+            createTemplateSession('preview', 'Preview / Build', { themeId: 'nord' }),
+            createTemplateSession('research', 'Research Notes', { themeId: 'sorbet' }),
+        ],
+    }),
+];
 function normalizeLayoutItem(raw) {
     if (!raw || typeof raw !== 'object')
         return null;
@@ -246,7 +346,7 @@ function normalizeWorkspaceRecord(raw, fallbackThemeId) {
     };
 }
 function readWorkspaceState() {
-    const fallbackThemeId = typeof store.get('theme') === 'string' ? String(store.get('theme')) : defaultPreferences.defaultThemeId;
+    const fallbackThemeId = getFallbackThemeId();
     const raw = store.get('workspaces');
     if (raw && typeof raw === 'object') {
         const data = raw;
@@ -302,6 +402,48 @@ function readWorkspaceState() {
         currentWorkspaceId: null,
         workspaces: [],
     };
+}
+function materializeWorkspaceSnapshot(snapshot, fallbackThemeId) {
+    const normalizedSnapshot = normalizeWorkspaceSnapshot(snapshot, fallbackThemeId);
+    const now = Date.now();
+    const templateIds = Array.from(new Set([
+        ...normalizedSnapshot.layout.map((item) => item.i),
+        ...normalizedSnapshot.sessions.map((session) => session.id),
+    ]));
+    const idMap = new Map(templateIds.map((id) => [id, createId('sess')]));
+    return normalizeWorkspaceSnapshot({
+        layout: normalizedSnapshot.layout.map((item) => ({
+            ...item,
+            i: idMap.get(item.i) ?? createId('sess'),
+        })),
+        sessions: normalizedSnapshot.sessions.map((session) => ({
+            ...session,
+            id: idMap.get(session.id) ?? createId('sess'),
+            pid: undefined,
+            isAlive: false,
+            createdAt: now,
+            shellName: undefined,
+            cwd: undefined,
+        })),
+        themeId: normalizedSnapshot.themeId,
+    }, fallbackThemeId);
+}
+function createWorkspaceRecordFromSnapshot(name, snapshot, workspaceCount) {
+    const now = Date.now();
+    const fallbackThemeId = getFallbackThemeId();
+    return {
+        id: createId('ws'),
+        name: typeof name === 'string' && name.trim() ? name.trim() : `Workspace ${workspaceCount + 1}`,
+        createdAt: now,
+        updatedAt: now,
+        lastOpenedAt: now,
+        snapshot: normalizeWorkspaceSnapshot(snapshot, fallbackThemeId),
+    };
+}
+function createWorkspaceFromTemplateRecord(template, name, workspaceCount) {
+    const fallbackThemeId = getFallbackThemeId();
+    const materializedSnapshot = materializeWorkspaceSnapshot(template.snapshot, fallbackThemeId);
+    return createWorkspaceRecordFromSnapshot(name || template.suggestedWorkspaceName, materializedSnapshot, workspaceCount);
 }
 function writeWorkspaceState(state) {
     store.set('workspaces', state);
@@ -914,22 +1056,32 @@ electron_1.ipcMain.handle('store:saveTheme', (_event, theme) => {
 electron_1.ipcMain.handle('store:getWorkspaces', () => {
     return readWorkspaceState();
 });
+electron_1.ipcMain.handle('store:getWorkspaceTemplates', () => {
+    return builtInWorkspaceTemplates;
+});
 electron_1.ipcMain.handle('store:createWorkspace', (_event, name, snapshot, makeCurrent = true) => {
     const state = readWorkspaceState();
-    const now = Date.now();
-    const workspace = {
-        id: createId('ws'),
-        name: typeof name === 'string' && name.trim() ? name.trim() : `Workspace ${state.workspaces.length + 1}`,
-        createdAt: now,
-        updatedAt: now,
-        lastOpenedAt: now,
-        snapshot: normalizeWorkspaceSnapshot(snapshot, typeof store.get('theme') === 'string' ? String(store.get('theme')) : defaultPreferences.defaultThemeId),
-    };
+    const workspace = createWorkspaceRecordFromSnapshot(name, snapshot, state.workspaces.length);
     const nextState = {
         currentWorkspaceId: makeCurrent ? workspace.id : state.currentWorkspaceId,
         workspaces: [...state.workspaces, workspace],
     };
     writeWorkspaceState(nextState);
+    return workspace;
+});
+electron_1.ipcMain.handle('store:createWorkspaceFromTemplate', (_event, templateId, name) => {
+    const state = readWorkspaceState();
+    const template = builtInWorkspaceTemplates.find((item) => item.id === templateId);
+    if (!template)
+        return null;
+    const workspace = createWorkspaceFromTemplateRecord(template, typeof name === 'string' ? name.trim() : '', state.workspaces.length);
+    const nextState = {
+        currentWorkspaceId: workspace.id,
+        workspaces: [...state.workspaces, workspace],
+    };
+    writeWorkspaceState(nextState);
+    store.set('layout', workspace.snapshot.layout);
+    store.set('theme', workspace.snapshot.themeId);
     return workspace;
 });
 electron_1.ipcMain.handle('store:updateWorkspace', (_event, id, updates) => {
@@ -956,7 +1108,7 @@ electron_1.ipcMain.handle('store:updateWorkspace', (_event, id, updates) => {
 });
 electron_1.ipcMain.handle('store:updateWorkspaceSnapshot', (_event, id, snapshot) => {
     const state = readWorkspaceState();
-    const normalizedSnapshot = normalizeWorkspaceSnapshot(snapshot, typeof store.get('theme') === 'string' ? String(store.get('theme')) : defaultPreferences.defaultThemeId);
+    const normalizedSnapshot = normalizeWorkspaceSnapshot(snapshot, getFallbackThemeId());
     const workspaces = state.workspaces.map((workspace) => workspace.id === id
         ? {
             ...workspace,

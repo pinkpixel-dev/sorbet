@@ -6,6 +6,8 @@
 
 - Saved workspaces with named workspace snapshots
 - Workspace sidebar for browsing, switching, renaming, deleting, and saving workspaces
+- Built-in workspace templates for full-stack work, monitoring, debugging, and documentation flows
+- Template gallery, sidebar shortcuts, and command palette actions for creating a new workspace from a starter layout
 - Window pinning so terminal cards can be locked against drag and resize changes
 - In-app workspace naming dialog for save-as and rename flows
 - Per-window theme overrides with inherit-from-workspace behavior and card-level color identity

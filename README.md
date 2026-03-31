@@ -4,11 +4,11 @@
   <img src="./logo.png" width="300" height="300" alt="Sorbet logo" />
 </p>
 
-`Sorbet` is a desktop terminal workspace built with Electron, React, and xterm.js. Instead of a single terminal pane or fixed tab strip, it gives you a canvas of movable terminal cards that can be opened, resized, minimized, restored, pinned, themed, saved as named workspaces, and tuned to fit the way you work.
+`Sorbet` is a desktop terminal workspace built with Electron, React, and xterm.js. Instead of a single terminal pane or fixed tab strip, it gives you a canvas of movable terminal cards that can be opened, resized, minimized, restored, pinned, themed, saved as named workspaces, started from reusable templates, and tuned to fit the way you work.
 
 It is especially useful for running multiple CLI agents side by side in one tiling workspace. Tools like Claude Code CLI, OpenAI Codex CLI, GitHub Copilot CLI, Amazon Kiro CLI, Google Gemini CLI, OpenCode, and similar agent-driven terminal tools become much more powerful when you can keep several sessions visible at once for coding, research, debugging, review, or general help with tasks on your computer.
 
-Sorbet now includes named saved workspaces, a workspace sidebar, pinned terminal windows, session metadata, and a command palette on top of the `1.0.0` foundation of PTY-backed sessions, theming, preferences, and desktop packaging.
+Sorbet now includes named saved workspaces, a workspace sidebar, reusable workspace templates, pinned terminal windows, session metadata, and a command palette on top of the `1.0.0` foundation of PTY-backed sessions, theming, preferences, and desktop packaging.
 
 ## Highlights
 
@@ -16,6 +16,7 @@ Sorbet now includes named saved workspaces, a workspace sidebar, pinned terminal
 - Real PTY-backed shells powered by `node-pty`
 - Named saved workspaces with restore, rename, and delete actions
 - Workspace sidebar for switching between saved layouts
+- Built-in workspace templates with a gallery and one-click workspace creation
 - Window pinning and layout locking for terminal cards
 - Per-window themes with inheritable workspace defaults and color identity
 - Persistent workspace layout, workspace theme, and per-window theme overrides
@@ -67,6 +68,8 @@ Sorbet now includes named saved workspaces, a workspace sidebar, pinned terminal
 - Save the current canvas as a named workspace
 - Restore the most recently selected saved workspace on launch
 - Browse saved workspaces from the built-in left sidebar
+- Browse built-in workspace templates for common flows like full-stack work, monitoring, debugging, and writing
+- Create a fresh named workspace from a template without mutating your current canvas
 - Rename and delete saved workspaces
 - Preserve terminal metadata such as titles, minimized state, and pinned state inside saved workspaces
 - Preserve per-window theme overrides inside saved workspaces
@@ -115,9 +118,9 @@ Sorbet now includes named saved workspaces, a workspace sidebar, pinned terminal
 
 At a high level, the application is split into three parts:
 
-1. The Electron main process creates the native window, spawns PTY-backed shell sessions, manages menus, loads and watches user configuration files, and persists workspace layouts, saved workspaces, and theme settings.
-2. The preload script exposes a small, typed API on `window.sorbet` so the renderer can safely request PTY, clipboard, and storage operations.
-3. The React renderer manages workspace restoration, saved-workspace switching, terminal lifecycle, workspace and per-window theme selection, user preferences, and card interactions.
+1. The Electron main process creates the native window, spawns PTY-backed shell sessions, manages menus, loads and watches user configuration files, persists workspace layouts and saved workspaces, and materializes new workspaces from the built-in template catalog.
+2. The preload script exposes a small, typed API on `window.sorbet` so the renderer can safely request PTY, clipboard, workspace-template, and storage operations.
+3. The React renderer manages workspace restoration, saved-workspace switching, template browsing, terminal lifecycle, workspace and per-window theme selection, user preferences, and card interactions.
 
 When a new card is created, the renderer computes a layout position, adds a session to the Zustand store, and mounts a `TerminalCard`. That card initializes xterm.js, asks the main process to create a PTY, wires terminal input/output over IPC, and reacts to live preference changes such as font or clipboard behavior.
 

@@ -39,7 +39,9 @@ export interface SorbetAPI {
     getTheme: () => Promise<string>
     saveTheme: (theme: string) => Promise<{ success: boolean }>
     getWorkspaces: () => Promise<WorkspaceState>
+    getWorkspaceTemplates: () => Promise<WorkspaceTemplateRecord[]>
     createWorkspace: (name: string, snapshot: WorkspaceSnapshot, makeCurrent?: boolean) => Promise<WorkspaceRecord>
+    createWorkspaceFromTemplate: (templateId: string, name?: string) => Promise<WorkspaceRecord | null>
     updateWorkspace: (id: string, updates: Partial<WorkspaceRecord>) => Promise<WorkspaceRecord | null>
     updateWorkspaceSnapshot: (id: string, snapshot: WorkspaceSnapshot) => Promise<{ success: boolean }>
     deleteWorkspace: (id: string) => Promise<{ success: boolean; currentWorkspaceId: string | null }>
@@ -99,6 +101,16 @@ export interface WorkspaceRecord {
 export interface WorkspaceState {
   currentWorkspaceId: string | null
   workspaces: WorkspaceRecord[]
+}
+
+export interface WorkspaceTemplateRecord {
+  id: string
+  name: string
+  description: string
+  category: string
+  accent: string
+  suggestedWorkspaceName: string
+  snapshot: WorkspaceSnapshot
 }
 
 // Theme definition

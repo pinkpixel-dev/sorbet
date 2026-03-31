@@ -14,7 +14,7 @@ Ordered from the strongest foundational work to the heavier expansion features:
 - [x] Per-window themes and color identity
 - [x] Session metadata and status
 - [x] Commands and command palette
-- [ ] Workspace templates
+- [x] Workspace templates
 - [ ] Project-aware workspaces
 - [ ] Workspace actions and startup scripts
 - [ ] Browser windows in the workspace
@@ -176,6 +176,8 @@ These items build on the core workspace model so Sorbet becomes more repeatable,
 
 ### 7. Workspace Templates
 
+Status: Implemented.
+
 Templates could create predefined layouts for common tasks such as:
 
 - full-stack web development
@@ -188,6 +190,12 @@ Why it matters:
 - makes onboarding and repeatability much stronger
 - helps users benefit from saved workspaces without setting everything up from scratch
 - creates a bridge between persistence and more advanced workflow automation
+
+Implemented scope:
+
+- built-in templates for full-stack work, monitoring, debugging, and documentation writing
+- template gallery plus sidebar and command-palette entry points
+- create a fresh named workspace from a template without overwriting the current canvas
 
 ### 8. Project-Aware Workspaces
 
@@ -379,4 +387,4 @@ These decisions will shape implementation details:
 
 ## Summary
 
-The strongest next step for `Sorbet` is to deepen the workspace concept before broadening it. Saved workspaces, a sidebar, pinning, per-window identity, metadata, and a command palette would make the existing terminal canvas substantially more capable. From there, templates, project-aware behavior, and startup actions can turn Sorbet into a repeatable workflow tool. Once that foundation is solid, browser, filesystem, and editor windows can expand it into a flexible control center for CLI-agent workflows without losing its original character.
+The strongest next step for `Sorbet` is to deepen the workspace concept before broadening it. Saved workspaces, a sidebar, pinning, per-window identity, metadata, a command palette, and templates already make the existing terminal canvas substantially more capable. From here, project-aware behavior and startup actions can turn Sorbet into an even more repeatable workflow tool. Once that foundation is solid, browser, filesystem, and editor windows can expand it into a flexible control center for CLI-agent workflows without losing its original character.

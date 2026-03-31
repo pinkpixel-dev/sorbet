@@ -5,7 +5,7 @@ import { CommandPalette, CommandPaletteItem } from './components/CommandPalette'
 import { ThemePicker } from './components/ThemePicker'
 import { useSorbetStore } from './store'
 import { builtInThemes, defaultTerminalPreferences, defaultTheme, mergeThemes } from './themes'
-import { LayoutItem, TerminalPreferences, TerminalSession, Theme, WorkspaceRecord } from './types'
+import { LayoutItem, TerminalPreferences, TerminalSession, Theme, WorkspaceRecord, WorkspaceTemplateRecord } from './types'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import './app.css'
@@ -21,6 +21,11 @@ const CARD_MAXIMIZED_H = 90
 type WorkspaceDialogState =
   | {
       mode: 'save'
+      value: string
+    }
+  | {
+      mode: 'template'
+      templateId: string
       value: string
     }
   | {
@@ -70,9 +75,11 @@ export default function App() {
   const [availableThemes, setAvailableThemes] = useState<Theme[]>(builtInThemes)
   const [preferences, setPreferences] = useState<TerminalPreferences>(defaultTerminalPreferences)
   const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>([])
+  const [workspaceTemplates, setWorkspaceTemplates] = useState<WorkspaceTemplateRecord[]>([])
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string | null>(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
+  const [isTemplateGalleryOpen, setIsTemplateGalleryOpen] = useState(false)
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState>(null)
   const {
     sessions,
@@ -136,6 +143,10 @@ export default function App() {
     themesById[preferences.defaultThemeId] ||
     defaultTheme
   const currentWorkspace = workspaces.find((workspace) => workspace.id === currentWorkspaceId) ?? null
+  const templateInDialog =
+    workspaceDialog?.mode === 'template'
+      ? workspaceTemplates.find((template) => template.id === workspaceDialog.templateId) ?? null
+      : null
 
   useEffect(() => {
     layoutRef.current = layout
@@ -172,6 +183,12 @@ export default function App() {
     setWorkspaces(nextState.workspaces)
     setCurrentWorkspaceId(nextState.currentWorkspaceId)
     return nextState
+  }, [])
+
+  const loadWorkspaceTemplates = useCallback(async () => {
+    const templates = await window.sorbet.store.getWorkspaceTemplates()
+    setWorkspaceTemplates(templates)
+    return templates
   }, [])
 
   const applyWorkspace = useCallback(
@@ -211,6 +228,7 @@ export default function App() {
       loadUserConfiguration(),
       window.sorbet.store.getTheme(),
       window.sorbet.store.getWorkspaces(),
+      loadWorkspaceTemplates(),
     ]).then(([, savedTheme, workspaceState]) => {
       if (cancelled) return
 
@@ -236,7 +254,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [applyWorkspace, loadUserConfiguration, setTheme, spawnTerminal])
+  }, [applyWorkspace, loadUserConfiguration, loadWorkspaceTemplates, setTheme, spawnTerminal])
 
   useEffect(() => {
     return window.sorbet.store.onConfigChanged(() => {
@@ -304,6 +322,15 @@ export default function App() {
     })
   }, [currentWorkspace?.name, workspaces.length])
 
+  const openTemplateDialog = useCallback((template: WorkspaceTemplateRecord) => {
+    setWorkspaceDialog({
+      mode: 'template',
+      templateId: template.id,
+      value: template.suggestedWorkspaceName,
+    })
+    setIsTemplateGalleryOpen(false)
+  }, [])
+
   const handleSwitchWorkspace = useCallback(
     async (workspaceId: string) => {
       if (workspaceId === currentWorkspaceId) return
@@ -358,6 +385,18 @@ export default function App() {
     }).format(timestamp)
   }, [])
 
+  const handleCreateWorkspaceFromTemplate = useCallback(
+    async (templateId: string, name: string) => {
+      await persistCurrentWorkspace()
+      const workspace = await window.sorbet.store.createWorkspaceFromTemplate(templateId, name)
+      if (!workspace) return
+
+      applyWorkspace(workspace)
+      await syncWorkspaceState()
+    },
+    [applyWorkspace, persistCurrentWorkspace, syncWorkspaceState]
+  )
+
   const focusSession = useCallback(
     (sessionId: string) => {
       const target = sessions.find((session) => session.id === sessionId)
@@ -391,6 +430,12 @@ export default function App() {
         return
       }
 
+      if (workspaceDialog.mode === 'template') {
+        await handleCreateWorkspaceFromTemplate(workspaceDialog.templateId, nextName)
+        setWorkspaceDialog(null)
+        return
+      }
+
       const targetWorkspace = workspaces.find((workspace) => workspace.id === workspaceDialog.workspaceId)
       if (!targetWorkspace || nextName === targetWorkspace.name) {
         setWorkspaceDialog(null)
@@ -403,7 +448,7 @@ export default function App() {
     } catch (error) {
       console.error('Workspace dialog action failed', error)
     }
-  }, [applyWorkspace, getWorkspaceSnapshot, syncWorkspaceState, workspaceDialog, workspaces])
+  }, [applyWorkspace, getWorkspaceSnapshot, handleCreateWorkspaceFromTemplate, syncWorkspaceState, workspaceDialog, workspaces])
 
   // Keyboard shortcut: Cmd/Ctrl+T to spawn new terminal
   useEffect(() => {
@@ -452,6 +497,22 @@ export default function App() {
       run: () => handleThemeChange(option.id),
     }))
 
+    const templateCommands: CommandPaletteItem[] = workspaceTemplates.map((template) => ({
+      id: `template:${template.id}`,
+      title: `Create from Template: ${template.name}`,
+      subtitle: template.description,
+      group: 'Template',
+      keywords: [
+        'template',
+        'workspace',
+        'starter',
+        template.name,
+        template.category,
+        template.description,
+      ],
+      run: () => openTemplateDialog(template),
+    }))
+
     const sessionCommands: CommandPaletteItem[] = sessions.map((session) => ({
       id: `session:${session.id}`,
       title: session.isMinimized ? `Restore ${session.title}` : `Focus ${session.title}`,
@@ -479,6 +540,14 @@ export default function App() {
         run: openSaveWorkspaceDialog,
       },
       {
+        id: 'workspace-templates',
+        title: 'Browse Workspace Templates',
+        subtitle: 'Start a new workspace from a built-in layout',
+        group: 'General',
+        keywords: ['template', 'workspace', 'starter', 'gallery'],
+        run: () => setIsTemplateGalleryOpen(true),
+      },
+      {
         id: 'toggle-sidebar',
         title: isSidebarOpen ? 'Hide Workspace Sidebar' : 'Show Workspace Sidebar',
         subtitle: 'Toggle the saved workspaces sidebar',
@@ -487,6 +556,7 @@ export default function App() {
         run: () => setIsSidebarOpen((open) => !open),
       },
       ...workspaceCommands,
+      ...templateCommands,
       ...themeCommands,
       ...sessionCommands,
     ]
@@ -498,11 +568,13 @@ export default function App() {
     handleSwitchWorkspace,
     handleThemeChange,
     isSidebarOpen,
+    openTemplateDialog,
     openSaveWorkspaceDialog,
     sessions,
     spawnTerminal,
     theme.id,
     workspaces,
+    workspaceTemplates,
   ])
 
   return (
@@ -522,10 +594,10 @@ export default function App() {
           <div className="flex items-center justify-between px-4 pt-4 pb-3">
             <div>
               <p className="text-[11px] uppercase tracking-[0.18em]" style={{ color: '#52525b' }}>
-                Workspaces
+                Workspace Library
               </p>
               <p className="text-sm font-medium" style={{ color: '#f4f4f5' }}>
-                {workspaces.length} saved
+                {workspaces.length} saved • {workspaceTemplates.length} templates
               </p>
             </div>
             <button
@@ -539,84 +611,157 @@ export default function App() {
           </div>
 
           <div className="px-4 pb-3">
-            <button
-              className="w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-              style={{
-                background: theme.accent + '18',
-                border: `1px solid ${theme.accent}33`,
-                color: theme.accent,
-              }}
-              onClick={openSaveWorkspaceDialog}
-            >
-              Save Current As
-            </button>
+            <div className="flex gap-2">
+              <button
+                className="flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{
+                  background: theme.accent + '18',
+                  border: `1px solid ${theme.accent}33`,
+                  color: theme.accent,
+                }}
+                onClick={openSaveWorkspaceDialog}
+              >
+                Save Current As
+              </button>
+              <button
+                className="px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{
+                  background: '#15151a',
+                  border: '1px solid #27272a',
+                  color: '#d4d4d8',
+                }}
+                onClick={() => setIsTemplateGalleryOpen(true)}
+              >
+                Templates
+              </button>
+            </div>
           </div>
 
           <div className="px-2 pb-4 overflow-y-auto h-[calc(100vh-112px)]">
-            {workspaces.length === 0 ? (
-              <div
-                className="mx-2 rounded-xl p-4 text-sm"
-                style={{ border: '1px solid #1f1f23', color: '#71717a', background: '#111113' }}
-              >
-                Save the current canvas as a named workspace to make it reusable.
+            <section className="mb-5">
+              <div className="px-2 pb-2 flex items-center justify-between">
+                <p className="text-[11px] uppercase tracking-[0.18em]" style={{ color: '#71717a' }}>
+                  Saved Workspaces
+                </p>
+                <span className="text-[11px]" style={{ color: '#52525b' }}>
+                  {workspaces.length}
+                </span>
               </div>
-            ) : (
-              workspaces.map((workspace) => {
-                const isCurrent = workspace.id === currentWorkspaceId
-                return (
-                  <div
-                    key={workspace.id}
-                    className="workspace-sidebar-item rounded-xl px-3 py-3 mb-2"
-                    style={{
-                      background: isCurrent ? '#15151a' : 'transparent',
-                      border: `1px solid ${isCurrent ? theme.accent + '44' : '#1f1f23'}`,
-                    }}
-                  >
-                    <button
-                      className="w-full text-left"
-                      onClick={() => void handleSwitchWorkspace(workspace.id)}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm font-medium" style={{ color: '#f4f4f5' }}>
-                          {workspace.name}
-                        </span>
-                        {isCurrent && (
-                          <span className="text-[10px] uppercase tracking-[0.16em]" style={{ color: theme.accent }}>
-                            Current
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-1 text-xs" style={{ color: '#71717a' }}>
-                        {workspace.snapshot.sessions.length} {workspace.snapshot.sessions.length === 1 ? 'terminal' : 'terminals'} • Updated {formatWorkspaceTimestamp(workspace.updatedAt)}
-                      </p>
-                    </button>
 
-                    <div className="flex items-center gap-2 mt-3">
+              {workspaces.length === 0 ? (
+                <div
+                  className="mx-2 rounded-xl p-4 text-sm"
+                  style={{ border: '1px solid #1f1f23', color: '#71717a', background: '#111113' }}
+                >
+                  Save the current canvas as a named workspace to make it reusable.
+                </div>
+              ) : (
+                workspaces.map((workspace) => {
+                  const isCurrent = workspace.id === currentWorkspaceId
+                  return (
+                    <div
+                      key={workspace.id}
+                      className="workspace-sidebar-item rounded-xl px-3 py-3 mb-2"
+                      style={{
+                        background: isCurrent ? '#15151a' : 'transparent',
+                        border: `1px solid ${isCurrent ? theme.accent + '44' : '#1f1f23'}`,
+                      }}
+                    >
                       <button
-                        className="px-2 py-1 rounded-md text-xs border transition-colors"
-                        style={{ borderColor: '#27272a', color: '#a1a1aa' }}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          openRenameWorkspaceDialog(workspace)
-                        }}
+                        className="w-full text-left"
+                        onClick={() => void handleSwitchWorkspace(workspace.id)}
                       >
-                        Rename
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-medium" style={{ color: '#f4f4f5' }}>
+                            {workspace.name}
+                          </span>
+                          {isCurrent && (
+                            <span className="text-[10px] uppercase tracking-[0.16em]" style={{ color: theme.accent }}>
+                              Current
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-xs" style={{ color: '#71717a' }}>
+                          {workspace.snapshot.sessions.length} {workspace.snapshot.sessions.length === 1 ? 'terminal' : 'terminals'} • Updated {formatWorkspaceTimestamp(workspace.updatedAt)}
+                        </p>
                       </button>
-                      <button
-                        className="px-2 py-1 rounded-md text-xs border transition-colors"
-                        style={{ borderColor: '#27272a', color: '#a1a1aa' }}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          void handleDeleteWorkspace(workspace)
-                        }}
-                      >
-                        Delete
-                      </button>
+
+                      <div className="flex items-center gap-2 mt-3">
+                        <button
+                          className="px-2 py-1 rounded-md text-xs border transition-colors"
+                          style={{ borderColor: '#27272a', color: '#a1a1aa' }}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            openRenameWorkspaceDialog(workspace)
+                          }}
+                        >
+                          Rename
+                        </button>
+                        <button
+                          className="px-2 py-1 rounded-md text-xs border transition-colors"
+                          style={{ borderColor: '#27272a', color: '#a1a1aa' }}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            void handleDeleteWorkspace(workspace)
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
+                  )
+                })
+              )}
+            </section>
+
+            <section>
+              <div className="px-2 pb-2 flex items-center justify-between">
+                <p className="text-[11px] uppercase tracking-[0.18em]" style={{ color: '#71717a' }}>
+                  Templates
+                </p>
+                <button
+                  className="text-[11px] uppercase tracking-[0.16em]"
+                  style={{ color: theme.accent }}
+                  onClick={() => setIsTemplateGalleryOpen(true)}
+                >
+                  Browse All
+                </button>
+              </div>
+
+              {workspaceTemplates.map((template) => (
+                <button
+                  key={template.id}
+                  className="w-full mb-2 rounded-xl px-3 py-3 text-left transition-colors"
+                  style={{
+                    background: '#111113',
+                    border: `1px solid ${template.accent}22`,
+                  }}
+                  onClick={() => openTemplateDialog(template)}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium" style={{ color: '#f4f4f5' }}>
+                      {template.name}
+                    </span>
+                    <span
+                      className="rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.16em]"
+                      style={{
+                        color: template.accent,
+                        background: template.accent + '14',
+                        border: `1px solid ${template.accent}2a`,
+                      }}
+                    >
+                      {template.category}
+                    </span>
                   </div>
-                )
-              })
-            )}
+                  <p className="mt-2 text-xs leading-5" style={{ color: '#71717a' }}>
+                    {template.description}
+                  </p>
+                  <p className="mt-2 text-[11px]" style={{ color: '#52525b' }}>
+                    {template.snapshot.sessions.length} {template.snapshot.sessions.length === 1 ? 'terminal' : 'terminals'} starter
+                  </p>
+                </button>
+              ))}
+            </section>
           </div>
         </aside>
       )}
@@ -708,6 +853,20 @@ export default function App() {
             color: '#71717a',
             WebkitAppRegion: 'no-drag',
           } as React.CSSProperties}
+          onClick={() => setIsTemplateGalleryOpen(true)}
+          title="Browse workspace templates"
+        >
+          Templates
+        </button>
+
+        <button
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors"
+          style={{
+            background: 'transparent',
+            border: '1px solid #3f3f46',
+            color: '#71717a',
+            WebkitAppRegion: 'no-drag',
+          } as React.CSSProperties}
           onClick={() => setIsCommandPaletteOpen(true)}
           title="Open command palette (⌘K)"
         >
@@ -743,17 +902,30 @@ export default function App() {
             <p className="text-sm" style={{ color: '#52525b' }}>
               No terminals open
             </p>
-            <button
-              className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
-              style={{
-                background: theme.accent + '22',
-                border: `1px solid ${theme.accent}44`,
-                color: theme.accent,
-              }}
-              onClick={spawnTerminal}
-            >
-              Open Terminal
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                style={{
+                  background: theme.accent + '22',
+                  border: `1px solid ${theme.accent}44`,
+                  color: theme.accent,
+                }}
+                onClick={spawnTerminal}
+              >
+                Open Terminal
+              </button>
+              <button
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                style={{
+                  background: '#121217',
+                  border: '1px solid #27272a',
+                  color: '#d4d4d8',
+                }}
+                onClick={() => setIsTemplateGalleryOpen(true)}
+              >
+                Start From Template
+              </button>
+            </div>
           </div>
         ) : (
           <GridLayout
@@ -826,10 +998,118 @@ export default function App() {
         </div>
       )}
 
+      {isTemplateGalleryOpen && (
+        <div
+          className="fixed inset-0 flex items-center justify-center px-4 py-8"
+          style={{ background: 'rgba(9, 9, 11, 0.76)', zIndex: 1000 }}
+          onClick={() => setIsTemplateGalleryOpen(false)}
+        >
+          <div
+            className="w-full max-w-5xl rounded-[28px] overflow-hidden"
+            style={{
+              background: '#101014',
+              border: '1px solid #27272a',
+              boxShadow: '0 30px 100px rgba(0, 0, 0, 0.5)',
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-5 border-b" style={{ borderColor: '#202027' }}>
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.18em]" style={{ color: '#71717a' }}>
+                  Workspace Templates
+                </p>
+                <h2 className="mt-2 text-xl font-semibold" style={{ color: '#f4f4f5' }}>
+                  Start from a polished layout
+                </h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: '#a1a1aa' }}>
+                  Templates create a fresh named workspace with pre-arranged terminals, theme direction, and visual structure for common flows.
+                </p>
+              </div>
+              <button
+                className="px-3 py-2 rounded-lg text-sm border transition-colors"
+                style={{ borderColor: '#27272a', color: '#a1a1aa' }}
+                onClick={() => setIsTemplateGalleryOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6 max-h-[70vh] overflow-y-auto">
+              {workspaceTemplates.map((template) => (
+                <div
+                  key={template.id}
+                  className="rounded-[24px] p-5"
+                  style={{
+                    background: `linear-gradient(180deg, ${template.accent}10 0%, #121218 38%, #0d0d12 100%)`,
+                    border: `1px solid ${template.accent}2a`,
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span
+                      className="rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.18em]"
+                      style={{
+                        color: template.accent,
+                        background: template.accent + '12',
+                        border: `1px solid ${template.accent}24`,
+                      }}
+                    >
+                      {template.category}
+                    </span>
+                    <span className="text-[11px]" style={{ color: '#71717a' }}>
+                      {template.snapshot.sessions.length} {template.snapshot.sessions.length === 1 ? 'terminal' : 'terminals'}
+                    </span>
+                  </div>
+
+                  <h3 className="mt-4 text-lg font-semibold" style={{ color: '#f4f4f5' }}>
+                    {template.name}
+                  </h3>
+                  <p className="mt-3 text-sm leading-6" style={{ color: '#a1a1aa' }}>
+                    {template.description}
+                  </p>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {template.snapshot.sessions.map((session) => (
+                      <span
+                        key={session.id}
+                        className="rounded-full px-2.5 py-1 text-[11px]"
+                        style={{
+                          color: '#d4d4d8',
+                          background: '#17171d',
+                          border: '1px solid #27272a',
+                        }}
+                      >
+                        {session.title}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="mt-5 flex items-center justify-between gap-3">
+                    <p className="text-xs" style={{ color: '#71717a' }}>
+                      New workspace name: {template.suggestedWorkspaceName}
+                    </p>
+                    <button
+                      className="px-3 py-2 rounded-lg text-sm font-medium"
+                      style={{
+                        background: template.accent,
+                        color: '#09090b',
+                      }}
+                      onClick={() => openTemplateDialog(template)}
+                    >
+                      Use Template
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {workspaceDialog && (
         <div
           className="fixed inset-0 flex items-center justify-center"
           style={{ background: 'rgba(9, 9, 11, 0.72)', zIndex: 1000 }}
+          onClick={() => setWorkspaceDialog(null)}
         >
           <div
             className="w-full max-w-md rounded-2xl p-5"
@@ -843,12 +1123,18 @@ export default function App() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-sm font-semibold" style={{ color: '#f4f4f5' }}>
-                  {workspaceDialog.mode === 'save' ? 'Save Workspace As' : 'Rename Workspace'}
+                  {workspaceDialog.mode === 'save'
+                    ? 'Save Workspace As'
+                    : workspaceDialog.mode === 'template'
+                      ? 'Create Workspace From Template'
+                      : 'Rename Workspace'}
                 </h2>
                 <p className="mt-1 text-xs" style={{ color: '#71717a' }}>
                   {workspaceDialog.mode === 'save'
                     ? 'Create a named workspace snapshot from the current canvas.'
-                    : 'Update the workspace name without changing its layout.'}
+                    : workspaceDialog.mode === 'template'
+                      ? 'Create a fresh workspace from a built-in layout template.'
+                      : 'Update the workspace name without changing its layout.'}
                 </p>
               </div>
               <button
@@ -868,6 +1154,23 @@ export default function App() {
               }}
               onKeyDown={(event) => event.stopPropagation()}
             >
+              {workspaceDialog.mode === 'template' && templateInDialog && (
+                <div
+                  className="mb-4 rounded-xl p-3"
+                  style={{
+                    background: '#0d0d12',
+                    border: `1px solid ${templateInDialog.accent}2a`,
+                  }}
+                >
+                  <p className="text-xs font-medium" style={{ color: templateInDialog.accent }}>
+                    {templateInDialog.name}
+                  </p>
+                  <p className="mt-1 text-xs leading-5" style={{ color: '#71717a' }}>
+                    {templateInDialog.description}
+                  </p>
+                </div>
+              )}
+
               <label className="block text-xs font-medium mb-2" style={{ color: '#a1a1aa' }}>
                 Workspace name
               </label>
@@ -886,6 +1189,13 @@ export default function App() {
                     if (current.mode === 'save') {
                       return {
                         mode: 'save',
+                        value: nextValue,
+                      }
+                    }
+                    if (current.mode === 'template') {
+                      return {
+                        mode: 'template',
+                        templateId: current.templateId,
                         value: nextValue,
                       }
                     }
@@ -918,7 +1228,11 @@ export default function App() {
                     color: '#09090b',
                   }}
                 >
-                  {workspaceDialog.mode === 'save' ? 'Save Workspace' : 'Rename Workspace'}
+                  {workspaceDialog.mode === 'save'
+                    ? 'Save Workspace'
+                    : workspaceDialog.mode === 'template'
+                      ? 'Create Workspace'
+                      : 'Rename Workspace'}
                 </button>
               </div>
             </form>
