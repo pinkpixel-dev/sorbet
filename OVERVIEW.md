@@ -118,7 +118,7 @@ This directory contains the UI and renderer-side app state.
  - `scripts/run-vite-dev.cjs`
   - helper script that launches the Vite dev server and ensures shutdown signals terminate the whole Vite process group
 - `scripts/generate-icons.sh`
-  - generates Linux PNG icon sizes and the Windows `.ico` file from `assets/icon.png`
+  - generates Linux PNG icon sizes and the Windows `.ico` file from `assets/icon.png`, accepting either ImageMagick's `magick` or `convert` CLI
 - `scripts/build-rpm.sh`
   - creates the Linux `.rpm` package from the unpacked Electron build
 - `.github/workflows/linux-packages.yml`
@@ -472,4 +472,5 @@ npm run dist:win
 - Linux release packaging emits `AppImage`, `deb`, and `rpm` artifacts into `release/`.
 - Public Linux release artifacts should be built on `ubuntu-22.04` or through `.github/workflows/linux-packages.yml` because `AppImage` still relies on the host glibc for native modules like `node-pty`.
 - The Linux GitHub Actions release workflow also provisions ImageMagick because `npm run icons` is part of the package build path.
+- The icon-generation script is tolerant of both `magick` and `convert`, which keeps Ubuntu-hosted CI builds from failing on ImageMagick CLI naming differences.
 - Windows installers are built as NSIS `.exe` packages through GitHub Actions.

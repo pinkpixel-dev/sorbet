@@ -11,6 +11,7 @@
 ### Fixed
 
 - Documented and hardened the Linux release process around `node-pty` so Mint and Ubuntu users are less likely to hit startup failures caused by binaries compiled on newer distros such as Arch
+- Made the icon-generation script accept either ImageMagick's `magick` or `convert` CLI so Linux CI builds do not fail on Ubuntu runner command-name differences
 
 ## 1.1.0 - 2026-03-31
 
