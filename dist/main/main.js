@@ -134,7 +134,8 @@ function createTemplateSession(id, title, options = {}) {
         cwd: undefined,
     };
 }
-function createWorkspaceTemplate(id, name, description, category, accent, suggestedWorkspaceName, snapshot) {
+function createWorkspaceTemplate(id, name, description, category, accent, suggestedWorkspaceName, snapshot, options = {}) {
+    const now = Date.now();
     return {
         id,
         name,
@@ -142,6 +143,9 @@ function createWorkspaceTemplate(id, name, description, category, accent, sugges
         category,
         accent,
         suggestedWorkspaceName,
+        source: options.source ?? 'built-in',
+        createdAt: options.createdAt ?? now,
+        updatedAt: options.updatedAt ?? now,
         snapshot: normalizeWorkspaceSnapshot(snapshot, snapshot.themeId || defaultPreferences.defaultThemeId),
     };
 }
@@ -160,7 +164,7 @@ const builtInWorkspaceTemplates = [
             createTemplateSession('tests', 'Tests', { themeId: 'nord', isPinned: true }),
             createTemplateSession('logs', 'Logs', { themeId: 'gruvbox' }),
         ],
-    }),
+    }, { source: 'built-in', createdAt: 0, updatedAt: 0 }),
     createWorkspaceTemplate('monitoring', 'Server Monitoring', 'A supervision layout for long-running services, metrics, incident notes, and deploy output.', 'Operations', '#7aa2f7', 'Monitoring Workspace', {
         themeId: 'dark',
         layout: [
@@ -175,7 +179,7 @@ const builtInWorkspaceTemplates = [
             createTemplateSession('queue', 'Worker Queue', { themeId: 'dracula' }),
             createTemplateSession('deploy', 'Deploy Tail', { themeId: 'tokyonight' }),
         ],
-    }),
+    }, { source: 'built-in', createdAt: 0, updatedAt: 0 }),
     createWorkspaceTemplate('debugging', 'Debugging and Logs', 'A focused layout for reproduction, REPL work, trace output, and a pinned live log stream.', 'Diagnostics', '#f59e0b', 'Debug Workspace', {
         themeId: 'tokyonight',
         layout: [
@@ -190,7 +194,7 @@ const builtInWorkspaceTemplates = [
             createTemplateSession('trace', 'Trace Output', { themeId: 'dracula' }),
             createTemplateSession('live-log', 'Live Logs', { themeId: 'gruvbox', isPinned: true }),
         ],
-    }),
+    }, { source: 'built-in', createdAt: 0, updatedAt: 0 }),
     createWorkspaceTemplate('writing', 'Documentation Writing', 'A calmer three-pane setup for drafting, previewing, and keeping research notes visible.', 'Writing', '#c084fc', 'Documentation Workspace', {
         themeId: 'catppuccin',
         layout: [
@@ -203,7 +207,7 @@ const builtInWorkspaceTemplates = [
             createTemplateSession('preview', 'Preview / Build', { themeId: 'nord' }),
             createTemplateSession('research', 'Research Notes', { themeId: 'sorbet' }),
         ],
-    }),
+    }, { source: 'built-in', createdAt: 0, updatedAt: 0 }),
 ];
 function normalizeLayoutItem(raw) {
     if (!raw || typeof raw !== 'object')
@@ -345,6 +349,60 @@ function normalizeWorkspaceRecord(raw, fallbackThemeId) {
         snapshot: normalizeWorkspaceSnapshot(item.snapshot, fallbackThemeId),
     };
 }
+function normalizeWorkspaceTemplateRecord(raw, fallbackThemeId) {
+    if (!raw || typeof raw !== 'object')
+        return null;
+    const item = raw;
+    const now = Date.now();
+    if (typeof item.id !== 'string')
+        return null;
+    return {
+        id: item.id,
+        name: typeof item.name === 'string' && item.name.trim()
+            ? item.name.trim()
+            : 'Untitled Template',
+        description: typeof item.description === 'string' && item.description.trim()
+            ? item.description.trim()
+            : 'Custom workspace template',
+        category: typeof item.category === 'string' && item.category.trim()
+            ? item.category.trim()
+            : 'Custom',
+        accent: typeof item.accent === 'string' && item.accent.trim()
+            ? item.accent
+            : '#ec4899',
+        suggestedWorkspaceName: typeof item.suggestedWorkspaceName === 'string' && item.suggestedWorkspaceName.trim()
+            ? item.suggestedWorkspaceName.trim()
+            : 'Custom Workspace',
+        source: item.source === 'custom' ? 'custom' : 'built-in',
+        createdAt: typeof item.createdAt === 'number' ? item.createdAt : now,
+        updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : now,
+        snapshot: normalizeWorkspaceSnapshot(item.snapshot, fallbackThemeId),
+    };
+}
+function readCustomWorkspaceTemplates() {
+    const fallbackThemeId = getFallbackThemeId();
+    const raw = store.get('workspaceTemplates');
+    if (!Array.isArray(raw)) {
+        return [];
+    }
+    return raw
+        .map((item) => normalizeWorkspaceTemplateRecord(item, fallbackThemeId))
+        .filter((item) => Boolean(item))
+        .map((template) => ({
+        ...template,
+        source: 'custom',
+    }))
+        .sort((a, b) => b.updatedAt - a.updatedAt);
+}
+function writeCustomWorkspaceTemplates(templates) {
+    store.set('workspaceTemplates', templates.map((template) => ({
+        ...template,
+        source: 'custom',
+    })));
+}
+function readWorkspaceTemplates() {
+    return [...builtInWorkspaceTemplates, ...readCustomWorkspaceTemplates()];
+}
 function readWorkspaceState() {
     const fallbackThemeId = getFallbackThemeId();
     const raw = store.get('workspaces');
@@ -438,6 +496,32 @@ function createWorkspaceRecordFromSnapshot(name, snapshot, workspaceCount) {
         updatedAt: now,
         lastOpenedAt: now,
         snapshot: normalizeWorkspaceSnapshot(snapshot, fallbackThemeId),
+    };
+}
+function createWorkspaceTemplateRecordFromSnapshot(name, snapshot, templateCount, options = {}) {
+    const now = Date.now();
+    const fallbackThemeId = getFallbackThemeId();
+    const normalizedSnapshot = normalizeWorkspaceSnapshot(snapshot, fallbackThemeId);
+    const trimmedName = typeof name === 'string' && name.trim() ? name.trim() : `Template ${templateCount + 1}`;
+    return {
+        id: createId('tpl'),
+        name: trimmedName,
+        description: typeof options.description === 'string' && options.description.trim()
+            ? options.description.trim()
+            : `Saved from a ${normalizedSnapshot.sessions.length}-terminal workspace.`,
+        category: typeof options.category === 'string' && options.category.trim()
+            ? options.category.trim()
+            : 'Custom',
+        accent: typeof options.accent === 'string' && options.accent.trim()
+            ? options.accent
+            : '#ec4899',
+        suggestedWorkspaceName: typeof options.suggestedWorkspaceName === 'string' && options.suggestedWorkspaceName.trim()
+            ? options.suggestedWorkspaceName.trim()
+            : `${trimmedName} Workspace`,
+        source: 'custom',
+        createdAt: now,
+        updatedAt: now,
+        snapshot: normalizedSnapshot,
     };
 }
 function createWorkspaceFromTemplateRecord(template, name, workspaceCount) {
@@ -1057,7 +1141,7 @@ electron_1.ipcMain.handle('store:getWorkspaces', () => {
     return readWorkspaceState();
 });
 electron_1.ipcMain.handle('store:getWorkspaceTemplates', () => {
-    return builtInWorkspaceTemplates;
+    return readWorkspaceTemplates();
 });
 electron_1.ipcMain.handle('store:createWorkspace', (_event, name, snapshot, makeCurrent = true) => {
     const state = readWorkspaceState();
@@ -1071,7 +1155,7 @@ electron_1.ipcMain.handle('store:createWorkspace', (_event, name, snapshot, make
 });
 electron_1.ipcMain.handle('store:createWorkspaceFromTemplate', (_event, templateId, name) => {
     const state = readWorkspaceState();
-    const template = builtInWorkspaceTemplates.find((item) => item.id === templateId);
+    const template = readWorkspaceTemplates().find((item) => item.id === templateId);
     if (!template)
         return null;
     const workspace = createWorkspaceFromTemplateRecord(template, typeof name === 'string' ? name.trim() : '', state.workspaces.length);
@@ -1083,6 +1167,55 @@ electron_1.ipcMain.handle('store:createWorkspaceFromTemplate', (_event, template
     store.set('layout', workspace.snapshot.layout);
     store.set('theme', workspace.snapshot.themeId);
     return workspace;
+});
+electron_1.ipcMain.handle('store:createWorkspaceTemplate', (_event, name, snapshot, options) => {
+    const templates = readCustomWorkspaceTemplates();
+    const payload = options && typeof options === 'object' ? options : {};
+    const template = createWorkspaceTemplateRecordFromSnapshot(name, snapshot, templates.length, {
+        description: typeof payload.description === 'string' ? payload.description : undefined,
+        category: typeof payload.category === 'string' ? payload.category : undefined,
+        accent: typeof payload.accent === 'string' ? payload.accent : undefined,
+        suggestedWorkspaceName: typeof payload.suggestedWorkspaceName === 'string'
+            ? payload.suggestedWorkspaceName
+            : undefined,
+    });
+    writeCustomWorkspaceTemplates([...templates, template]);
+    return template;
+});
+electron_1.ipcMain.handle('store:updateWorkspaceTemplate', (_event, id, updates) => {
+    const payload = updates && typeof updates === 'object' ? updates : {};
+    let updatedTemplate = null;
+    const templates = readCustomWorkspaceTemplates().map((template) => {
+        if (template.id !== id)
+            return template;
+        updatedTemplate = {
+            ...template,
+            name: typeof payload.name === 'string' && payload.name.trim()
+                ? payload.name.trim()
+                : template.name,
+            description: typeof payload.description === 'string' && payload.description.trim()
+                ? payload.description.trim()
+                : template.description,
+            category: typeof payload.category === 'string' && payload.category.trim()
+                ? payload.category.trim()
+                : template.category,
+            accent: typeof payload.accent === 'string' && payload.accent.trim()
+                ? payload.accent
+                : template.accent,
+            suggestedWorkspaceName: typeof payload.suggestedWorkspaceName === 'string' && payload.suggestedWorkspaceName.trim()
+                ? payload.suggestedWorkspaceName.trim()
+                : template.suggestedWorkspaceName,
+            updatedAt: Date.now(),
+        };
+        return updatedTemplate;
+    });
+    writeCustomWorkspaceTemplates(templates);
+    return updatedTemplate;
+});
+electron_1.ipcMain.handle('store:deleteWorkspaceTemplate', (_event, id) => {
+    const templates = readCustomWorkspaceTemplates().filter((template) => template.id !== id);
+    writeCustomWorkspaceTemplates(templates);
+    return { success: true };
 });
 electron_1.ipcMain.handle('store:updateWorkspace', (_event, id, updates) => {
     const state = readWorkspaceState();

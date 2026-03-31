@@ -35,7 +35,7 @@ The runtime is composed of five major layers:
 7. Input from xterm.js is forwarded to the PTY over IPC.
 8. Output from the PTY is streamed back to the card over IPC.
 9. Layout, saved-workspace, workspace-theme, and per-window theme changes are persisted through `electron-store`.
-10. Built-in workspace templates are exposed from the main process and can be instantiated into fresh saved workspaces with new session IDs.
+10. Built-in and user-saved workspace templates are exposed from the main process and can be instantiated into fresh saved workspaces with new session IDs.
 11. The command palette builds a searchable list of actions from live renderer state so users can switch workspaces, start from templates, change themes, and jump between sessions quickly.
 12. Preference and custom-theme changes are detected in the main process and pushed back to the renderer over a lightweight config-change event.
 13. Packaged builds load the bundled renderer based on `app.isPackaged` rather than environment variables.
@@ -53,7 +53,7 @@ This directory contains the Electron main process and preload bridge.
   - owns the PTY session map
   - forwards PTY output and exit events to the renderer
   - persists saved workspaces, layout snapshots, selected workspace theme, and per-window theme overrides
-  - owns the built-in workspace template catalog and creates new workspaces from template snapshots
+  - owns the built-in workspace template catalog, persists custom templates, and creates new workspaces from template snapshots
   - creates and watches `preferences.json` plus the custom theme directory
   - defines the native application menu
 - `preload.ts`
@@ -68,7 +68,7 @@ This directory contains the UI and renderer-side app state.
   - top-level application shell
   - workspace initialization
   - saved-workspace sidebar and dialog flows
-  - workspace-template gallery and create-from-template flow
+  - workspace-template gallery plus save, rename, delete, and create-from-template flows
   - command palette command generation and keyboard shortcuts
   - grid layout configuration
   - workspace theme selection
@@ -187,6 +187,7 @@ Sorbet uses two persistence paths:
 - `electron-store` for:
   - `layout`
   - `workspaces`
+  - `workspaceTemplates`
   - `theme`
 - JSON files in Electron `userData` for:
   - `preferences.json`
@@ -194,7 +195,7 @@ Sorbet uses two persistence paths:
 
 The preferences file is intentionally human-editable and includes an ignored `_template` section with inline guidance. The custom theme directory is watched and valid theme files are added to the renderer theme list automatically. Workspace snapshots carry the selected workspace theme plus any session-level `themeId` overrides.
 
-Workspace templates are currently built in rather than user-authored. The main process exposes the template catalog to the renderer over IPC, then clones the selected template into a normal saved workspace with fresh session IDs and timestamps so the persisted workspace model stays the single source of truth.
+Workspace templates now come from two sources: built-in starters shipped with the app and custom templates saved by the user. The main process exposes the combined template catalog to the renderer over IPC, then clones the selected template into a normal saved workspace with fresh session IDs and timestamps so the persisted workspace model stays the single source of truth.
 
 ## Preload Bridge Design
 
@@ -223,6 +224,9 @@ The preload script exposes a small API under `window.sorbet`.
   - `getWorkspaceTemplates()`
   - `createWorkspace(name, snapshot, makeCurrent?)`
   - `createWorkspaceFromTemplate(templateId, name?)`
+  - `createWorkspaceTemplate(name, snapshot, options?)`
+  - `updateWorkspaceTemplate(id, updates)`
+  - `deleteWorkspaceTemplate(id)`
   - `updateWorkspace(id, updates)`
   - `updateWorkspaceSnapshot(id, snapshot)`
   - `deleteWorkspace(id)`
@@ -248,6 +252,8 @@ Key responsibilities:
 - restoring persisted workspace state on first load
 - loading and switching saved workspaces
 - loading workspace templates and creating fresh workspaces from them
+- saving the current workspace as a reusable custom template
+- renaming and deleting custom templates
 - loading user preferences and custom themes
 - creating a default terminal when there is no saved layout
 - managing the grid width for `react-grid-layout`

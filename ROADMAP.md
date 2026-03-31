@@ -195,6 +195,8 @@ Implemented scope:
 
 - built-in templates for full-stack work, monitoring, debugging, and documentation writing
 - template gallery plus sidebar and command-palette entry points
+- save the current workspace as a reusable custom template
+- rename and delete custom templates without affecting built-in starters
 - create a fresh named workspace from a template without overwriting the current canvas
 
 ### 8. Project-Aware Workspaces

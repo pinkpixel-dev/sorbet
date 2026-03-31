@@ -42,6 +42,16 @@ export interface SorbetAPI {
     getWorkspaceTemplates: () => Promise<WorkspaceTemplateRecord[]>
     createWorkspace: (name: string, snapshot: WorkspaceSnapshot, makeCurrent?: boolean) => Promise<WorkspaceRecord>
     createWorkspaceFromTemplate: (templateId: string, name?: string) => Promise<WorkspaceRecord | null>
+    createWorkspaceTemplate: (
+      name: string,
+      snapshot: WorkspaceSnapshot,
+      options?: Partial<Pick<WorkspaceTemplateRecord, 'description' | 'category' | 'accent' | 'suggestedWorkspaceName'>>
+    ) => Promise<WorkspaceTemplateRecord>
+    updateWorkspaceTemplate: (
+      id: string,
+      updates: Partial<Pick<WorkspaceTemplateRecord, 'name' | 'description' | 'category' | 'accent' | 'suggestedWorkspaceName'>>
+    ) => Promise<WorkspaceTemplateRecord | null>
+    deleteWorkspaceTemplate: (id: string) => Promise<{ success: boolean }>
     updateWorkspace: (id: string, updates: Partial<WorkspaceRecord>) => Promise<WorkspaceRecord | null>
     updateWorkspaceSnapshot: (id: string, snapshot: WorkspaceSnapshot) => Promise<{ success: boolean }>
     deleteWorkspace: (id: string) => Promise<{ success: boolean; currentWorkspaceId: string | null }>
@@ -110,6 +120,9 @@ export interface WorkspaceTemplateRecord {
   category: string
   accent: string
   suggestedWorkspaceName: string
+  source: 'built-in' | 'custom'
+  createdAt: number
+  updatedAt: number
   snapshot: WorkspaceSnapshot
 }
 

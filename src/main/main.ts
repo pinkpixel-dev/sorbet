@@ -119,6 +119,9 @@ interface WorkspaceTemplateRecord {
   category: string
   accent: string
   suggestedWorkspaceName: string
+  source: 'built-in' | 'custom'
+  createdAt: number
+  updatedAt: number
   snapshot: WorkspaceSnapshot
 }
 
@@ -189,8 +192,10 @@ function createWorkspaceTemplate(
   category: string,
   accent: string,
   suggestedWorkspaceName: string,
-  snapshot: WorkspaceSnapshot
+  snapshot: WorkspaceSnapshot,
+  options: Partial<Pick<WorkspaceTemplateRecord, 'source' | 'createdAt' | 'updatedAt'>> = {}
 ): WorkspaceTemplateRecord {
+  const now = Date.now()
   return {
     id,
     name,
@@ -198,6 +203,9 @@ function createWorkspaceTemplate(
     category,
     accent,
     suggestedWorkspaceName,
+    source: options.source ?? 'built-in',
+    createdAt: options.createdAt ?? now,
+    updatedAt: options.updatedAt ?? now,
     snapshot: normalizeWorkspaceSnapshot(snapshot, snapshot.themeId || defaultPreferences.defaultThemeId),
   }
 }
@@ -224,7 +232,8 @@ const builtInWorkspaceTemplates: WorkspaceTemplateRecord[] = [
         createTemplateSession('tests', 'Tests', { themeId: 'nord', isPinned: true }),
         createTemplateSession('logs', 'Logs', { themeId: 'gruvbox' }),
       ],
-    }
+    },
+    { source: 'built-in', createdAt: 0, updatedAt: 0 }
   ),
   createWorkspaceTemplate(
     'monitoring',
@@ -247,7 +256,8 @@ const builtInWorkspaceTemplates: WorkspaceTemplateRecord[] = [
         createTemplateSession('queue', 'Worker Queue', { themeId: 'dracula' }),
         createTemplateSession('deploy', 'Deploy Tail', { themeId: 'tokyonight' }),
       ],
-    }
+    },
+    { source: 'built-in', createdAt: 0, updatedAt: 0 }
   ),
   createWorkspaceTemplate(
     'debugging',
@@ -270,7 +280,8 @@ const builtInWorkspaceTemplates: WorkspaceTemplateRecord[] = [
         createTemplateSession('trace', 'Trace Output', { themeId: 'dracula' }),
         createTemplateSession('live-log', 'Live Logs', { themeId: 'gruvbox', isPinned: true }),
       ],
-    }
+    },
+    { source: 'built-in', createdAt: 0, updatedAt: 0 }
   ),
   createWorkspaceTemplate(
     'writing',
@@ -291,7 +302,8 @@ const builtInWorkspaceTemplates: WorkspaceTemplateRecord[] = [
         createTemplateSession('preview', 'Preview / Build', { themeId: 'nord' }),
         createTemplateSession('research', 'Research Notes', { themeId: 'sorbet' }),
       ],
-    }
+    },
+    { source: 'built-in', createdAt: 0, updatedAt: 0 }
   ),
 ]
 
@@ -450,6 +462,77 @@ function normalizeWorkspaceRecord(raw: unknown, fallbackThemeId: string): Worksp
   }
 }
 
+function normalizeWorkspaceTemplateRecord(
+  raw: unknown,
+  fallbackThemeId: string
+): WorkspaceTemplateRecord | null {
+  if (!raw || typeof raw !== 'object') return null
+  const item = raw as Record<string, unknown>
+  const now = Date.now()
+
+  if (typeof item.id !== 'string') return null
+
+  return {
+    id: item.id,
+    name:
+      typeof item.name === 'string' && item.name.trim()
+        ? item.name.trim()
+        : 'Untitled Template',
+    description:
+      typeof item.description === 'string' && item.description.trim()
+        ? item.description.trim()
+        : 'Custom workspace template',
+    category:
+      typeof item.category === 'string' && item.category.trim()
+        ? item.category.trim()
+        : 'Custom',
+    accent:
+      typeof item.accent === 'string' && item.accent.trim()
+        ? item.accent
+        : '#ec4899',
+    suggestedWorkspaceName:
+      typeof item.suggestedWorkspaceName === 'string' && item.suggestedWorkspaceName.trim()
+        ? item.suggestedWorkspaceName.trim()
+        : 'Custom Workspace',
+    source: item.source === 'custom' ? 'custom' : 'built-in',
+    createdAt: typeof item.createdAt === 'number' ? item.createdAt : now,
+    updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : now,
+    snapshot: normalizeWorkspaceSnapshot(item.snapshot, fallbackThemeId),
+  }
+}
+
+function readCustomWorkspaceTemplates(): WorkspaceTemplateRecord[] {
+  const fallbackThemeId = getFallbackThemeId()
+  const raw = store.get('workspaceTemplates')
+
+  if (!Array.isArray(raw)) {
+    return []
+  }
+
+  return raw
+    .map((item) => normalizeWorkspaceTemplateRecord(item, fallbackThemeId))
+    .filter((item): item is WorkspaceTemplateRecord => Boolean(item))
+    .map((template) => ({
+      ...template,
+      source: 'custom' as const,
+    }))
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+}
+
+function writeCustomWorkspaceTemplates(templates: WorkspaceTemplateRecord[]) {
+  store.set(
+    'workspaceTemplates',
+    templates.map((template) => ({
+      ...template,
+      source: 'custom',
+    }))
+  )
+}
+
+function readWorkspaceTemplates(): WorkspaceTemplateRecord[] {
+  return [...builtInWorkspaceTemplates, ...readCustomWorkspaceTemplates()]
+}
+
 function readWorkspaceState(): WorkspaceState {
   const fallbackThemeId = getFallbackThemeId()
   const raw = store.get('workspaces')
@@ -566,6 +649,44 @@ function createWorkspaceRecordFromSnapshot(
     updatedAt: now,
     lastOpenedAt: now,
     snapshot: normalizeWorkspaceSnapshot(snapshot, fallbackThemeId),
+  }
+}
+
+function createWorkspaceTemplateRecordFromSnapshot(
+  name: string,
+  snapshot: unknown,
+  templateCount: number,
+  options: Partial<Pick<WorkspaceTemplateRecord, 'description' | 'category' | 'accent' | 'suggestedWorkspaceName'>> = {}
+): WorkspaceTemplateRecord {
+  const now = Date.now()
+  const fallbackThemeId = getFallbackThemeId()
+  const normalizedSnapshot = normalizeWorkspaceSnapshot(snapshot, fallbackThemeId)
+  const trimmedName =
+    typeof name === 'string' && name.trim() ? name.trim() : `Template ${templateCount + 1}`
+
+  return {
+    id: createId('tpl'),
+    name: trimmedName,
+    description:
+      typeof options.description === 'string' && options.description.trim()
+        ? options.description.trim()
+        : `Saved from a ${normalizedSnapshot.sessions.length}-terminal workspace.`,
+    category:
+      typeof options.category === 'string' && options.category.trim()
+        ? options.category.trim()
+        : 'Custom',
+    accent:
+      typeof options.accent === 'string' && options.accent.trim()
+        ? options.accent
+        : '#ec4899',
+    suggestedWorkspaceName:
+      typeof options.suggestedWorkspaceName === 'string' && options.suggestedWorkspaceName.trim()
+        ? options.suggestedWorkspaceName.trim()
+        : `${trimmedName} Workspace`,
+    source: 'custom',
+    createdAt: now,
+    updatedAt: now,
+    snapshot: normalizedSnapshot,
   }
 }
 
@@ -1264,7 +1385,7 @@ ipcMain.handle('store:getWorkspaces', () => {
 })
 
 ipcMain.handle('store:getWorkspaceTemplates', () => {
-  return builtInWorkspaceTemplates
+  return readWorkspaceTemplates()
 })
 
 ipcMain.handle('store:createWorkspace', (_event, name: string, snapshot: unknown, makeCurrent = true) => {
@@ -1282,7 +1403,7 @@ ipcMain.handle('store:createWorkspace', (_event, name: string, snapshot: unknown
 
 ipcMain.handle('store:createWorkspaceFromTemplate', (_event, templateId: string, name?: string) => {
   const state = readWorkspaceState()
-  const template = builtInWorkspaceTemplates.find((item) => item.id === templateId)
+  const template = readWorkspaceTemplates().find((item) => item.id === templateId)
   if (!template) return null
 
   const workspace = createWorkspaceFromTemplateRecord(
@@ -1300,6 +1421,68 @@ ipcMain.handle('store:createWorkspaceFromTemplate', (_event, templateId: string,
   store.set('theme', workspace.snapshot.themeId)
 
   return workspace
+})
+
+ipcMain.handle('store:createWorkspaceTemplate', (_event, name: string, snapshot: unknown, options: unknown) => {
+  const templates = readCustomWorkspaceTemplates()
+  const payload = options && typeof options === 'object' ? (options as Record<string, unknown>) : {}
+  const template = createWorkspaceTemplateRecordFromSnapshot(name, snapshot, templates.length, {
+    description: typeof payload.description === 'string' ? payload.description : undefined,
+    category: typeof payload.category === 'string' ? payload.category : undefined,
+    accent: typeof payload.accent === 'string' ? payload.accent : undefined,
+    suggestedWorkspaceName:
+      typeof payload.suggestedWorkspaceName === 'string'
+        ? payload.suggestedWorkspaceName
+        : undefined,
+  })
+
+  writeCustomWorkspaceTemplates([...templates, template])
+  return template
+})
+
+ipcMain.handle('store:updateWorkspaceTemplate', (_event, id: string, updates: unknown) => {
+  const payload = updates && typeof updates === 'object' ? (updates as Record<string, unknown>) : {}
+  let updatedTemplate: WorkspaceTemplateRecord | null = null
+
+  const templates = readCustomWorkspaceTemplates().map((template) => {
+    if (template.id !== id) return template
+
+    updatedTemplate = {
+      ...template,
+      name:
+        typeof payload.name === 'string' && payload.name.trim()
+          ? payload.name.trim()
+          : template.name,
+      description:
+        typeof payload.description === 'string' && payload.description.trim()
+          ? payload.description.trim()
+          : template.description,
+      category:
+        typeof payload.category === 'string' && payload.category.trim()
+          ? payload.category.trim()
+          : template.category,
+      accent:
+        typeof payload.accent === 'string' && payload.accent.trim()
+          ? payload.accent
+          : template.accent,
+      suggestedWorkspaceName:
+        typeof payload.suggestedWorkspaceName === 'string' && payload.suggestedWorkspaceName.trim()
+          ? payload.suggestedWorkspaceName.trim()
+          : template.suggestedWorkspaceName,
+      updatedAt: Date.now(),
+    }
+
+    return updatedTemplate
+  })
+
+  writeCustomWorkspaceTemplates(templates)
+  return updatedTemplate
+})
+
+ipcMain.handle('store:deleteWorkspaceTemplate', (_event, id: string) => {
+  const templates = readCustomWorkspaceTemplates().filter((template) => template.id !== id)
+  writeCustomWorkspaceTemplates(templates)
+  return { success: true }
 })
 
 ipcMain.handle('store:updateWorkspace', (_event, id: string, updates: unknown) => {

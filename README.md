@@ -16,7 +16,7 @@ Sorbet now includes named saved workspaces, a workspace sidebar, reusable worksp
 - Real PTY-backed shells powered by `node-pty`
 - Named saved workspaces with restore, rename, and delete actions
 - Workspace sidebar for switching between saved layouts
-- Built-in workspace templates with a gallery and one-click workspace creation
+- Built-in and user-saved workspace templates with a gallery and one-click workspace creation
 - Window pinning and layout locking for terminal cards
 - Per-window themes with inheritable workspace defaults and color identity
 - Persistent workspace layout, workspace theme, and per-window theme overrides
@@ -69,6 +69,8 @@ Sorbet now includes named saved workspaces, a workspace sidebar, reusable worksp
 - Restore the most recently selected saved workspace on launch
 - Browse saved workspaces from the built-in left sidebar
 - Browse built-in workspace templates for common flows like full-stack work, monitoring, debugging, and writing
+- Save the current canvas as a reusable custom template for later
+- Rename and delete custom templates without affecting the built-in starter set
 - Create a fresh named workspace from a template without mutating your current canvas
 - Rename and delete saved workspaces
 - Preserve terminal metadata such as titles, minimized state, and pinned state inside saved workspaces
@@ -118,9 +120,9 @@ Sorbet now includes named saved workspaces, a workspace sidebar, reusable worksp
 
 At a high level, the application is split into three parts:
 
-1. The Electron main process creates the native window, spawns PTY-backed shell sessions, manages menus, loads and watches user configuration files, persists workspace layouts and saved workspaces, and materializes new workspaces from the built-in template catalog.
+1. The Electron main process creates the native window, spawns PTY-backed shell sessions, manages menus, loads and watches user configuration files, persists workspace layouts, saved workspaces, and custom templates, and materializes new workspaces from the template catalog.
 2. The preload script exposes a small, typed API on `window.sorbet` so the renderer can safely request PTY, clipboard, workspace-template, and storage operations.
-3. The React renderer manages workspace restoration, saved-workspace switching, template browsing, terminal lifecycle, workspace and per-window theme selection, user preferences, and card interactions.
+3. The React renderer manages workspace restoration, saved-workspace switching, template browsing, template saving, terminal lifecycle, workspace and per-window theme selection, user preferences, and card interactions.
 
 When a new card is created, the renderer computes a layout position, adds a session to the Zustand store, and mounts a `TerminalCard`. That card initializes xterm.js, asks the main process to create a PTY, wires terminal input/output over IPC, and reacts to live preference changes such as font or clipboard behavior.
 

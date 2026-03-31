@@ -59,6 +59,12 @@ contextBridge.exposeInMainWorld('sorbet', {
       ipcRenderer.invoke('store:createWorkspace', name, snapshot, makeCurrent),
     createWorkspaceFromTemplate: (templateId: string, name?: string) =>
       ipcRenderer.invoke('store:createWorkspaceFromTemplate', templateId, name),
+    createWorkspaceTemplate: (name: string, snapshot: unknown, options?: unknown) =>
+      ipcRenderer.invoke('store:createWorkspaceTemplate', name, snapshot, options),
+    updateWorkspaceTemplate: (id: string, updates: unknown) =>
+      ipcRenderer.invoke('store:updateWorkspaceTemplate', id, updates),
+    deleteWorkspaceTemplate: (id: string) =>
+      ipcRenderer.invoke('store:deleteWorkspaceTemplate', id),
     updateWorkspace: (id: string, updates: unknown) =>
       ipcRenderer.invoke('store:updateWorkspace', id, updates),
     updateWorkspaceSnapshot: (id: string, snapshot: unknown) =>
