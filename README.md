@@ -8,7 +8,7 @@
 
 It is especially useful for running multiple CLI agents side by side in one tiling workspace. Tools like Claude Code CLI, OpenAI Codex CLI, GitHub Copilot CLI, Amazon Kiro CLI, Google Gemini CLI, OpenCode, and similar agent-driven terminal tools become much more powerful when you can keep several sessions visible at once for coding, research, debugging, review, or general help with tasks on your computer.
 
-Sorbet now includes named saved workspaces, a workspace sidebar, reusable workspace templates, pinned terminal windows, session metadata, and a command palette on top of the `1.0.0` foundation of PTY-backed sessions, theming, preferences, and desktop packaging.
+Sorbet now includes named saved workspaces, a workspace sidebar, reusable workspace templates, pinned terminal windows, session metadata, and a command palette as part of the `1.1.0` release line, building on the PTY-backed sessions, theming, preferences, and desktop packaging introduced in `1.0.0`.
 
 ## Highlights
 
@@ -183,7 +183,7 @@ sorbet
 
 ### Linux release artifacts
 
-For `v1.0.0`, Sorbet publishes Linux desktop packages in these formats:
+For `v1.1.0`, Sorbet publishes Linux desktop packages in these formats:
 
 - `AppImage`
 - `deb`
@@ -289,12 +289,13 @@ Windows installers are built in GitHub Actions from `.github/workflows/windows-i
 
 ## Release Notes
 
-`v1.0.0` establishes the first stable Sorbet release line with:
+`v1.1.0` expands Sorbet into a more repeatable, project-aware terminal workspace with:
 
-- real shell-backed terminals instead of simulated output
-- a polished card-based workspace with minimize and maximize flows
-- persisted layout, workspace theme, and per-window theme state between launches
-- custom themes and user-editable preferences JSON
+- named saved workspaces with sidebar switching and management
+- reusable workspace templates plus project-aware workspace setup
+- per-terminal startup directories and optional boot commands for restored sessions
+- window pinning, per-window themes, and richer session metadata
+- a searchable command palette for workspace, theme, and session actions
 - Linux packaging with desktop integration metadata and generated app icons
 - Windows installer automation for release distribution
 

@@ -154,7 +154,7 @@ The main window is created hidden and shown only after `ready-to-show`. This red
 
 That combination keeps direct Node integration out of the renderer while preserving the preload bridge behavior Sorbet relies on under newer Electron releases.
 
-For `v1.0.0`, packaged builds use `app.isPackaged` to decide whether to load the active local dev server or the bundled renderer assets. In development, the shared dev-server port comes from `SORBET_DEV_PORT`, which prevents Electron and Vite from drifting out of sync when a default port is already occupied.
+For `v1.1.0`, packaged builds use `app.isPackaged` to decide whether to load the active local dev server or the bundled renderer assets. In development, the shared dev-server port comes from `SORBET_DEV_PORT`, which prevents Electron and Vite from drifting out of sync when a default port is already occupied.
 
 ### PTY management
 
@@ -384,7 +384,7 @@ The renderer applies themes at two levels:
 
 ### Built-in themes
 
-`1.0.0` ships with:
+`1.1.0` ships with:
 
 - `Sorbet`
 - `Midnight Graphite`

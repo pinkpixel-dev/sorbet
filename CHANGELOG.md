@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+_Nothing yet._
+
+## 1.1.0 - 2026-03-31
+
 ### Added
 
 - Saved workspaces with named workspace snapshots
@@ -48,6 +52,7 @@
 - Black-screen development startup caused by Electron 41 preload/sandbox behavior changes
 - Dev-session failures caused by port collisions between multiple local applications
 - Linux development startup noise and hidden-window behavior that made Electron launch failures harder to diagnose
+- Linux release packaging validation failures after the electron-builder 26 upgrade, caused by stale desktop-entry config keys
 
 ## 1.0.0 - 2026-03-21
 

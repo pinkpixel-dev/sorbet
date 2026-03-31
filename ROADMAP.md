@@ -1,6 +1,6 @@
 # Sorbet Roadmap
 
-This document outlines a practical forward-looking roadmap for `Sorbet` after `v1.0.0`.
+This document outlines a practical forward-looking roadmap for `Sorbet` after `v1.1.0`.
 
 It is intended to guide product direction, help prioritize development, and give contributors a shared view of where the workspace experience can go next. The roadmap is aspirational rather than a strict promise, and priorities may shift based on user feedback, implementation complexity, and platform constraints.
 
