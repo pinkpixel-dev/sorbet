@@ -10,6 +10,7 @@ interface TerminalCardProps {
   sessionId: string
   theme: Theme
   workspaceTheme: Theme
+  workspaceProjectPath?: string
   themes: Theme[]
   preferences: TerminalPreferences
   isActive: boolean
@@ -27,6 +28,7 @@ export function TerminalCard({
   sessionId,
   theme,
   workspaceTheme,
+  workspaceProjectPath,
   themes,
   preferences,
   isActive,
@@ -44,12 +46,20 @@ export function TerminalCard({
   const fitAddonRef = useRef<FitAddon | null>(null)
   const cleanupRef = useRef<(() => void)[]>([])
   const isInitialized = useRef(false)
+  const isDisposedRef = useRef(false)
+  const launchOptionsRef = useRef<{ cwd?: string; command?: string } | null>(null)
   const resizeFrameRef = useRef<number | null>(null)
   const resizeTimeoutRef = useRef<number | null>(null)
   const activityTimeoutRef = useRef<number | null>(null)
 
   const { updateSession, removeSession, sessions } = useSorbetStore()
   const session = sessions.find((item) => item.id === sessionId)
+  if (!launchOptionsRef.current) {
+    launchOptionsRef.current = {
+      cwd: session?.startupCwd || workspaceProjectPath,
+      command: session?.startupCommand,
+    }
+  }
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
@@ -103,10 +113,18 @@ export function TerminalCard({
   }, [])
 
   const fitTerminal = useCallback(() => {
-    if (!fitAddonRef.current || !terminalRef.current) return
+    const fitAddon = fitAddonRef.current
+    const terminal = terminalRef.current
+    const container = containerRef.current
+    if (!fitAddon || !terminal || !container || isDisposedRef.current) return
+    if (!container.isConnected || container.clientWidth <= 0 || container.clientHeight <= 0) return
+
     try {
-      fitAddonRef.current.fit()
-      const { cols, rows } = terminalRef.current
+      const dimensions = fitAddon.proposeDimensions()
+      if (!dimensions || dimensions.cols <= 0 || dimensions.rows <= 0) return
+
+      fitAddon.fit()
+      const { cols, rows } = terminal
       window.sorbet.pty.resize(sessionId, cols, rows)
     } catch {}
   }, [sessionId])
@@ -152,6 +170,7 @@ export function TerminalCard({
   useEffect(() => {
     if (isInitialized.current || !containerRef.current) return
     isInitialized.current = true
+    isDisposedRef.current = false
 
     // Build xterm instance
     const term = new Terminal({
@@ -200,6 +219,7 @@ export function TerminalCard({
 
     // Fit after a tick (DOM must be rendered)
     requestAnimationFrame(() => {
+      if (isDisposedRef.current || !containerRef.current?.isConnected) return
       fitAddon.fit()
       term.focus()
       term.textarea?.focus()
@@ -207,7 +227,10 @@ export function TerminalCard({
       const { cols, rows } = term
 
       // Spawn PTY
-      window.sorbet.pty.create(sessionId, cols, rows).then((result) => {
+      window.sorbet.pty.create(sessionId, cols, rows, {
+        cwd: launchOptionsRef.current?.cwd,
+        command: launchOptionsRef.current?.command,
+      }).then((result) => {
         if (result.success) {
           updateSession(sessionId, {
             pid: result.pid,
@@ -289,14 +312,18 @@ export function TerminalCard({
     ]
 
     return () => {
+      isDisposedRef.current = true
       cleanupRef.current.forEach((fn) => fn())
+      cleanupRef.current = []
+      terminalRef.current = null
+      fitAddonRef.current = null
       window.sorbet.pty.kill(sessionId)
     }
   }, [focusTerminalDom, sessionId, updateSession])
 
   // Update theme when it changes
   useEffect(() => {
-    if (!terminalRef.current) return
+    if (!terminalRef.current || isDisposedRef.current) return
     terminalRef.current.options.theme = {
       background: theme.background,
       foreground: theme.foreground,
@@ -323,7 +350,7 @@ export function TerminalCard({
   }, [theme])
 
   useEffect(() => {
-    if (!terminalRef.current) return
+    if (!terminalRef.current || isDisposedRef.current) return
     terminalRef.current.options.fontFamily = preferences.fontFamily
     terminalRef.current.options.fontSize = preferences.fontSize
     terminalRef.current.options.lineHeight = preferences.lineHeight
@@ -361,6 +388,7 @@ export function TerminalCard({
   useEffect(() => {
     if (!containerRef.current) return
     const observer = new ResizeObserver(() => {
+      if (isDisposedRef.current) return
       scheduleTerminalFit()
     })
     observer.observe(containerRef.current)

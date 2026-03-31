@@ -29,16 +29,18 @@ The runtime is composed of five major layers:
 1. Electron launches and creates the main window.
 2. The renderer loads either from the Vite dev server or the built renderer bundle.
 3. The renderer requests workspace state, user preferences, and custom themes from `window.sorbet.store`.
-4. If a saved workspace exists, the Zustand store reconstructs the current workspace snapshot from it.
+4. If a saved workspace exists, the Zustand store reconstructs the current workspace snapshot from it, including any project path and terminal startup metadata.
 5. If no saved workspace exists, the renderer creates one initial terminal session.
-6. Each `TerminalCard` mounts xterm.js and asks the main process to spawn a PTY.
+6. Each `TerminalCard` mounts xterm.js and asks the main process to spawn a PTY, optionally passing a saved startup cwd and boot command.
 7. Input from xterm.js is forwarded to the PTY over IPC.
 8. Output from the PTY is streamed back to the card over IPC.
-9. Layout, saved-workspace, workspace-theme, and per-window theme changes are persisted through `electron-store`.
-10. Built-in and user-saved workspace templates are exposed from the main process and can be instantiated into fresh saved workspaces with new session IDs.
-11. The command palette builds a searchable list of actions from live renderer state so users can switch workspaces, start from templates, change themes, and jump between sessions quickly.
-12. Preference and custom-theme changes are detected in the main process and pushed back to the renderer over a lightweight config-change event.
-13. Packaged builds load the bundled renderer based on `app.isPackaged` rather than environment variables.
+9. Terminal resize work is guarded against disconnected DOM nodes and disposed xterm instances so renderer cleanup cannot keep scheduling invalid `fit()` calls.
+10. Workspace switches are applied atomically in the renderer so the active workspace record, project path, theme, and terminal snapshot move together before new cards mount.
+11. Layout, saved-workspace, workspace-theme, and per-window theme changes are persisted through `electron-store`.
+12. Built-in and user-saved workspace templates are exposed from the main process and can be instantiated into fresh saved workspaces with new session IDs.
+13. The command palette builds a searchable list of actions from live renderer state so users can switch workspaces, start from templates, change themes, and jump between sessions quickly.
+14. Preference and custom-theme changes are detected in the main process and pushed back to the renderer over a lightweight config-change event.
+15. Packaged builds load the bundled renderer based on `app.isPackaged` rather than environment variables.
 
 ## Directory Guide
 
@@ -68,9 +70,11 @@ This directory contains the UI and renderer-side app state.
   - top-level application shell
   - workspace initialization
   - saved-workspace sidebar and dialog flows
+  - project-aware workspace setup modal
   - workspace-template gallery plus save, rename, delete, and create-from-template flows
   - command palette command generation and keyboard shortcuts
   - grid layout configuration
+  - atomic workspace transition handling and autosave suppression during restore
   - workspace theme selection
   - per-window theme resolution
   - preference loading
@@ -106,9 +110,11 @@ This directory contains the UI and renderer-side app state.
   - Vite configuration for the renderer build and dev server
   - reads `SORBET_DEV_PORT` so Electron and Vite can share the same dev server address
 - `scripts/start-dev.cjs`
-  - development orchestrator that picks an available port, starts the renderer and TypeScript watchers, and then launches Electron with the same environment
+  - development orchestrator that picks an available port, starts the renderer and TypeScript watchers, launches Electron with the same environment, and tears down the full child process tree on shutdown
 - `scripts/start-electron.cjs`
-  - helper script that launches Electron with the correct environment in development
+  - helper script that launches Electron with the correct environment in development and forwards shutdown signals to the Electron process group
+ - `scripts/run-vite-dev.cjs`
+  - helper script that launches the Vite dev server and ensures shutdown signals terminate the whole Vite process group
 - `scripts/generate-icons.sh`
   - generates Linux PNG icon sizes and the Windows `.ico` file from `assets/icon.png`
 - `scripts/build-rpm.sh`
@@ -167,6 +173,10 @@ The main process exposes IPC handlers/events for:
 On process exit, the session is removed from the map and an exit event is pushed back to the renderer.
 Sorbet also performs best-effort cwd polling so terminal cards can show live working-directory metadata without giving the renderer direct process access.
 
+Persisted layout items are normalized in the main process before they re-enter the renderer. That keeps `w` and `h` aligned with any stored `minW` and `minH` values, which prevents broken historical snapshots from producing invalid `react-grid-layout` state after restore.
+
+Workspace snapshot writes are also scoped so only the current workspace updates the legacy `layout` and `theme` cache. That avoids non-current workspace edits pushing stale visual state back into the active canvas.
+
 ### Shell resolution
 
 The shell selection logic prefers:
@@ -197,6 +207,8 @@ The preferences file is intentionally human-editable and includes an ignored `_t
 
 Workspace templates now come from two sources: built-in starters shipped with the app and custom templates saved by the user. The main process exposes the combined template catalog to the renderer over IPC, then clones the selected template into a normal saved workspace with fresh session IDs and timestamps so the persisted workspace model stays the single source of truth.
 
+Saved workspaces can also carry optional `projectPath` and `projectName` metadata, and those values now survive template creation plus regular workspace save-as copies. Individual terminal sessions may define `startupCwd` and `startupCommand`, which lets a restored workspace reopen in the right directories and optionally kick off repeatable boot commands.
+
 ## Preload Bridge Design
 
 The preload script exposes a small API under `window.sorbet`.
@@ -208,7 +220,7 @@ The preload script exposes a small API under `window.sorbet`.
   - `readText()`
   - `writeText(text)`
 - `window.sorbet.pty`
-  - `create(sessionId, cols, rows)`
+  - `create(sessionId, cols, rows, options?)`
   - `write(sessionId, data)`
   - `resize(sessionId, cols, rows)`
   - `kill(sessionId)`
@@ -222,7 +234,7 @@ The preload script exposes a small API under `window.sorbet`.
   - `saveTheme(theme)`
   - `getWorkspaces()`
   - `getWorkspaceTemplates()`
-  - `createWorkspace(name, snapshot, makeCurrent?)`
+  - `createWorkspace(name, snapshot, makeCurrent?, options?)`
   - `createWorkspaceFromTemplate(templateId, name?)`
   - `createWorkspaceTemplate(name, snapshot, options?)`
   - `updateWorkspaceTemplate(id, updates)`
@@ -252,6 +264,13 @@ Key responsibilities:
 - restoring persisted workspace state on first load
 - loading and switching saved workspaces
 - loading workspace templates and creating fresh workspaces from them
+- associating a workspace with a project path
+- defining per-terminal startup cwd and startup commands
+- keeping workspace setup dialog inputs stable while typing by snapshotting values before state updates
+- reapplying workspace startup settings inside the app without requiring a full app restart
+- normalizing user-entered workspace paths before validation so restore logic can honor inputs like `~/project`
+- tearing down current PTYs before applying another workspace so reused session ids cannot collide in the main process
+- materializing fresh runtime session ids when a saved workspace is restored, so persistence ids are not reused as live PTY ids
 - saving the current workspace as a reusable custom template
 - renaming and deleting custom templates
 - loading user preferences and custom themes
@@ -330,6 +349,7 @@ The Zustand store in `src/renderer/store/index.ts` is the authoritative renderer
 - Maximized sessions temporarily replace the grid layout with a single item.
 - Pinned sessions stay in state and mark their grid items as non-draggable and non-resizable.
 - Sessions can optionally store a `themeId`; if absent, the card inherits the current workspace theme.
+- Sessions can optionally store `startupCwd` and `startupCommand`; if absent, the card falls back to the workspace project path.
 
 ## UI Layout Model
 

@@ -5,7 +5,7 @@ import { CommandPalette, CommandPaletteItem } from './components/CommandPalette'
 import { ThemePicker } from './components/ThemePicker'
 import { useSorbetStore } from './store'
 import { builtInThemes, defaultTerminalPreferences, defaultTheme, mergeThemes } from './themes'
-import { LayoutItem, TerminalPreferences, TerminalSession, Theme, WorkspaceRecord, WorkspaceTemplateRecord } from './types'
+import { LayoutItem, TerminalPreferences, TerminalSession, Theme, WorkspaceRecord, WorkspaceSnapshot, WorkspaceTemplateRecord } from './types'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import './app.css'
@@ -17,6 +17,17 @@ const CARD_DEFAULT_H = 36
 const CARD_MIN_W = 12
 const CARD_MIN_H = 16
 const CARD_MAXIMIZED_H = 90
+
+interface WorkspaceSetupDraft {
+  workspaceId: string
+  projectPath: string
+  sessions: {
+    id: string
+    title: string
+    startupCwd: string
+    startupCommand: string
+  }[]
+}
 
 type WorkspaceDialogState =
   | {
@@ -77,11 +88,65 @@ function getNewCardLayout(existingLayout: LayoutItem[]): LayoutItem {
   return { i: id, x: 0, y: maxY, w: CARD_DEFAULT_W, h: CARD_DEFAULT_H, minW: CARD_MIN_W, minH: CARD_MIN_H }
 }
 
+function deriveProjectName(projectPath: string) {
+  const trimmedPath = projectPath.trim().replace(/[\\/]+$/, '')
+  if (!trimmedPath) return undefined
+
+  const parts = trimmedPath.split(/[\\/]/).filter(Boolean)
+  return parts[parts.length - 1] || trimmedPath
+}
+
+function clampLayoutItem(item: LayoutItem): LayoutItem {
+  const minW = Math.max(1, item.minW ?? CARD_MIN_W)
+  const minH = Math.max(1, item.minH ?? CARD_MIN_H)
+
+  return {
+    ...item,
+    x: Math.max(0, item.x),
+    y: Math.max(0, item.y),
+    w: Math.max(item.w, minW),
+    h: Math.max(item.h, minH),
+    minW,
+    minH,
+  }
+}
+
+function materializeWorkspaceSnapshot(snapshot: WorkspaceSnapshot): WorkspaceSnapshot {
+  const sourceIds = Array.from(
+    new Set([
+      ...snapshot.layout.map((item) => item.i),
+      ...snapshot.sessions.map((session) => session.id),
+    ])
+  )
+  const idMap = new Map(sourceIds.map((id) => [id, generateId()]))
+
+  return {
+    layout: snapshot.layout.map((item) => ({
+      ...item,
+      i: idMap.get(item.i) ?? generateId(),
+    })),
+    sessions: snapshot.sessions.map((session) => ({
+      ...session,
+      id: idMap.get(session.id) ?? generateId(),
+      pid: undefined,
+      isAlive: false,
+      shellName: undefined,
+      cwd: undefined,
+      status: 'idle',
+      hasUnreadOutput: false,
+      lastActivityAt: undefined,
+    })),
+    themeId: snapshot.themeId,
+  }
+}
+
 export default function App() {
   const isMac = window.sorbet.platform === 'darwin'
   const layoutRef = useRef<LayoutItem[]>([])
   const hasRestoredWorkspace = useRef(false)
   const hasHydratedWorkspaceState = useRef(false)
+  const isApplyingWorkspaceRef = useRef(false)
+  const currentWorkspaceIdRef = useRef<string | null>(null)
   const [gridWidth, setGridWidth] = useState(window.innerWidth)
   const [availableThemes, setAvailableThemes] = useState<Theme[]>(builtInThemes)
   const [preferences, setPreferences] = useState<TerminalPreferences>(defaultTerminalPreferences)
@@ -91,7 +156,9 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
   const [isTemplateGalleryOpen, setIsTemplateGalleryOpen] = useState(false)
+  const [workspaceSetupDraft, setWorkspaceSetupDraft] = useState<WorkspaceSetupDraft | null>(null)
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState>(null)
+  const [workspaceTerminalEpoch, setWorkspaceTerminalEpoch] = useState(0)
   const {
     sessions,
     layout,
@@ -129,11 +196,12 @@ export default function App() {
     : layout
         .filter((item) => visibleSessions.some((session) => session.id === item.i))
         .map((item) => {
+          const normalizedItem = clampLayoutItem(item)
           const session = visibleSessions.find((entry) => entry.id === item.i)
           const isPinned = Boolean(session?.isPinned)
 
           return {
-            ...item,
+            ...normalizedItem,
             static: isPinned,
             isDraggable: !isPinned,
             isResizable: !isPinned,
@@ -154,6 +222,7 @@ export default function App() {
     themesById[preferences.defaultThemeId] ||
     defaultTheme
   const currentWorkspace = workspaces.find((workspace) => workspace.id === currentWorkspaceId) ?? null
+  const activeSession = sessions.find((session) => session.id === activeSessionId) ?? null
   const customWorkspaceTemplates = workspaceTemplates.filter((template) => template.source === 'custom')
   const templateInDialog =
     workspaceDialog?.mode === 'create-workspace-from-template' || workspaceDialog?.mode === 'rename-template'
@@ -164,6 +233,23 @@ export default function App() {
     layoutRef.current = layout
   }, [layout])
 
+  useEffect(() => {
+    currentWorkspaceIdRef.current = currentWorkspaceId
+  }, [currentWorkspaceId])
+
+  const commitWorkspaceLocally = useCallback((workspace: WorkspaceRecord) => {
+    currentWorkspaceIdRef.current = workspace.id
+    setCurrentWorkspaceId(workspace.id)
+    setWorkspaces((existing) => {
+      const index = existing.findIndex((item) => item.id === workspace.id)
+      if (index === -1) {
+        return [...existing, workspace]
+      }
+
+      return existing.map((item) => (item.id === workspace.id ? workspace : item))
+    })
+  }, [])
+
   const spawnTerminal = useCallback(() => {
     const layoutItem = getNewCardLayout(layoutRef.current)
     const session: TerminalSession = {
@@ -173,12 +259,13 @@ export default function App() {
       createdAt: Date.now(),
       isMinimized: false,
       isPinned: false,
+      startupCwd: currentWorkspace?.projectPath || undefined,
       themeId: undefined,
       status: 'idle',
       hasUnreadOutput: false,
     }
     addSession(session, layoutItem)
-  }, [addSession])
+  }, [addSession, currentWorkspace?.projectPath])
 
   const loadUserConfiguration = useCallback(async () => {
     const [nextPreferences, customThemes] = await Promise.all([
@@ -192,6 +279,7 @@ export default function App() {
 
   const syncWorkspaceState = useCallback(async () => {
     const nextState = await window.sorbet.store.getWorkspaces()
+    currentWorkspaceIdRef.current = nextState.currentWorkspaceId
     setWorkspaces(nextState.workspaces)
     setCurrentWorkspaceId(nextState.currentWorkspaceId)
     return nextState
@@ -204,21 +292,39 @@ export default function App() {
   }, [])
 
   const applyWorkspace = useCallback(
-    (workspace: WorkspaceRecord) => {
-      restoreWorkspace(workspace.snapshot)
-      setTheme(workspace.snapshot.themeId)
-      setCurrentWorkspaceId(workspace.id)
+    async (workspace: WorkspaceRecord) => {
+      isApplyingWorkspaceRef.current = true
+      try {
+        if (sessions.length > 0) {
+          await Promise.allSettled(sessions.map((session) => window.sorbet.pty.kill(session.id)))
+        }
+
+        commitWorkspaceLocally(workspace)
+        restoreWorkspace(materializeWorkspaceSnapshot(workspace.snapshot))
+        setTheme(workspace.snapshot.themeId)
+        setWorkspaceTerminalEpoch((epoch) => epoch + 1)
+
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => resolve())
+          })
+        })
+      } finally {
+        isApplyingWorkspaceRef.current = false
+      }
     },
-    [restoreWorkspace, setTheme]
+    [commitWorkspaceLocally, restoreWorkspace, sessions, setTheme]
   )
 
   const persistCurrentWorkspace = useCallback(async () => {
-    if (!hasHydratedWorkspaceState.current || !currentWorkspaceId) return
+    const workspaceId = currentWorkspaceIdRef.current
+    if (!hasHydratedWorkspaceState.current || !workspaceId || isApplyingWorkspaceRef.current) return
+
     const snapshot = getWorkspaceSnapshot()
-    await window.sorbet.store.updateWorkspaceSnapshot(currentWorkspaceId, snapshot)
+    await window.sorbet.store.updateWorkspaceSnapshot(workspaceId, snapshot)
     setWorkspaces((existing) =>
       existing.map((workspace) =>
-        workspace.id === currentWorkspaceId
+        workspace.id === workspaceId
           ? {
               ...workspace,
               updatedAt: Date.now(),
@@ -227,7 +333,7 @@ export default function App() {
           : workspace
       )
     )
-  }, [currentWorkspaceId, getWorkspaceSnapshot])
+  }, [getWorkspaceSnapshot])
 
   // Load persisted layout and theme on startup
   useEffect(() => {
@@ -241,7 +347,7 @@ export default function App() {
       window.sorbet.store.getTheme(),
       window.sorbet.store.getWorkspaces(),
       loadWorkspaceTemplates(),
-    ]).then(([, savedTheme, workspaceState]) => {
+    ]).then(async ([, savedTheme, workspaceState]) => {
       if (cancelled) return
 
       setWorkspaces(workspaceState.workspaces)
@@ -252,7 +358,7 @@ export default function App() {
       )
 
       if (currentWorkspace) {
-        applyWorkspace(currentWorkspace)
+        await applyWorkspace(currentWorkspace)
         hasHydratedWorkspaceState.current = true
         return
       }
@@ -289,9 +395,10 @@ export default function App() {
   // Auto-save layout whenever it changes
   useEffect(() => {
     if (!hasHydratedWorkspaceState.current) return
+    if (isApplyingWorkspaceRef.current) return
 
     if (layout.length > 0) {
-      window.sorbet.store.saveLayout(layout)
+      window.sorbet.store.saveLayout(layout.map(clampLayoutItem))
     }
 
     void persistCurrentWorkspace()
@@ -308,7 +415,7 @@ export default function App() {
         h: l.h,
         minW: CARD_MIN_W,
         minH: CARD_MIN_H,
-      }))
+      })).map(clampLayoutItem)
       updateLayout(updated)
     },
     [maximizedSessionId, updateLayout]
@@ -365,7 +472,7 @@ export default function App() {
       const workspace = await window.sorbet.store.setCurrentWorkspace(workspaceId)
       if (!workspace) return
 
-      applyWorkspace(workspace)
+      await applyWorkspace(workspace)
       await syncWorkspaceState()
     },
     [applyWorkspace, currentWorkspaceId, persistCurrentWorkspace, syncWorkspaceState]
@@ -389,6 +496,21 @@ export default function App() {
     setIsTemplateGalleryOpen(false)
   }, [])
 
+  const openWorkspaceSetupDialog = useCallback(() => {
+    if (!currentWorkspace) return
+
+    setWorkspaceSetupDraft({
+      workspaceId: currentWorkspace.id,
+      projectPath: currentWorkspace.projectPath || activeSession?.cwd || '',
+      sessions: sessions.map((session) => ({
+        id: session.id,
+        title: session.title || 'Terminal',
+        startupCwd: session.startupCwd || '',
+        startupCommand: session.startupCommand || '',
+      })),
+    })
+  }, [activeSession?.cwd, currentWorkspace, sessions])
+
   const handleDeleteWorkspace = useCallback(
     async (workspace: WorkspaceRecord) => {
       const confirmed = window.confirm(`Delete workspace "${workspace.name}"?`)
@@ -403,7 +525,7 @@ export default function App() {
       )
 
       if (nextCurrentWorkspace) {
-        applyWorkspace(nextCurrentWorkspace)
+        await applyWorkspace(nextCurrentWorkspace)
         return
       }
 
@@ -427,7 +549,7 @@ export default function App() {
       const workspace = await window.sorbet.store.createWorkspaceFromTemplate(templateId, name)
       if (!workspace) return
 
-      applyWorkspace(workspace)
+      await applyWorkspace(workspace)
       await syncWorkspaceState()
     },
     [applyWorkspace, persistCurrentWorkspace, syncWorkspaceState]
@@ -440,11 +562,13 @@ export default function App() {
         category: 'Custom',
         accent: theme.accent,
         suggestedWorkspaceName: `${name} Workspace`,
+        projectPath: currentWorkspace?.projectPath,
+        projectName: currentWorkspace?.projectName,
       })
 
       setWorkspaceTemplates((existing) => [...existing, created])
     },
-    [getWorkspaceSnapshot, theme.accent]
+    [currentWorkspace?.projectName, currentWorkspace?.projectPath, getWorkspaceSnapshot, theme.accent]
   )
 
   const handleRenameTemplate = useCallback(async (templateId: string, name: string, description: string) => {
@@ -471,6 +595,58 @@ export default function App() {
     setWorkspaceTemplates((existing) => existing.filter((item) => item.id !== template.id))
   }, [])
 
+  const handleWorkspaceSetupSave = useCallback(async () => {
+    if (!workspaceSetupDraft) return
+
+    const normalizedProjectPath = workspaceSetupDraft.projectPath.trim()
+    const projectPath = normalizedProjectPath || undefined
+    const projectName = deriveProjectName(normalizedProjectPath)
+    const sessionStartupById = new Map(
+      workspaceSetupDraft.sessions.map((sessionDraft) => [
+        sessionDraft.id,
+        {
+          startupCwd: sessionDraft.startupCwd.trim() || undefined,
+          startupCommand: sessionDraft.startupCommand.trim() || undefined,
+        },
+      ])
+    )
+    const currentSnapshot = getWorkspaceSnapshot()
+    const nextSnapshot = {
+      ...currentSnapshot,
+      sessions: currentSnapshot.sessions.map((session) => {
+        const startupSettings = sessionStartupById.get(session.id)
+        if (!startupSettings) return session
+
+        return {
+          ...session,
+          startupCwd: startupSettings.startupCwd,
+          startupCommand: startupSettings.startupCommand,
+        }
+      }),
+    }
+
+    workspaceSetupDraft.sessions.forEach((sessionDraft) => {
+      updateSession(sessionDraft.id, {
+        startupCwd: sessionDraft.startupCwd.trim() || undefined,
+        startupCommand: sessionDraft.startupCommand.trim() || undefined,
+      })
+    })
+
+    await window.sorbet.store.updateWorkspace(workspaceSetupDraft.workspaceId, {
+      projectPath,
+      projectName,
+    })
+    await window.sorbet.store.updateWorkspaceSnapshot(workspaceSetupDraft.workspaceId, nextSnapshot)
+    const nextState = await syncWorkspaceState()
+    const updatedWorkspace = nextState.workspaces.find(
+      (workspace) => workspace.id === workspaceSetupDraft.workspaceId
+    )
+    if (updatedWorkspace) {
+      await applyWorkspace(updatedWorkspace)
+    }
+    setWorkspaceSetupDraft(null)
+  }, [applyWorkspace, getWorkspaceSnapshot, syncWorkspaceState, updateSession, workspaceSetupDraft])
+
   const focusSession = useCallback(
     (sessionId: string) => {
       const target = sessions.find((session) => session.id === sessionId)
@@ -492,14 +668,17 @@ export default function App() {
 
     try {
       if (workspaceDialog.mode === 'save-workspace') {
-        await window.sorbet.store.createWorkspace(nextName, getWorkspaceSnapshot(), true)
+        await window.sorbet.store.createWorkspace(nextName, getWorkspaceSnapshot(), true, {
+          projectPath: currentWorkspace?.projectPath,
+          projectName: currentWorkspace?.projectName,
+        })
         const nextState = await syncWorkspaceState()
         const nextCurrentWorkspace = nextState.workspaces.find(
           (workspace) => workspace.id === nextState.currentWorkspaceId
         )
 
         if (nextCurrentWorkspace) {
-          applyWorkspace(nextCurrentWorkspace)
+          await applyWorkspace(nextCurrentWorkspace)
         }
 
         setWorkspaceDialog(null)
@@ -538,6 +717,8 @@ export default function App() {
     }
   }, [
     applyWorkspace,
+    currentWorkspace?.projectName,
+    currentWorkspace?.projectPath,
     getWorkspaceSnapshot,
     handleCreateWorkspaceFromTemplate,
     handleRenameTemplate,
@@ -577,9 +758,12 @@ export default function App() {
     const workspaceCommands: CommandPaletteItem[] = workspaces.map((workspace) => ({
       id: `workspace:${workspace.id}`,
       title: workspace.id === currentWorkspaceId ? `Current Workspace: ${workspace.name}` : `Switch to ${workspace.name}`,
-      subtitle: `${workspace.snapshot.sessions.length} ${workspace.snapshot.sessions.length === 1 ? 'terminal' : 'terminals'} • Updated ${formatWorkspaceTimestamp(workspace.updatedAt)}`,
+      subtitle: [
+        workspace.projectName ? `Project ${workspace.projectName}` : `${workspace.snapshot.sessions.length} ${workspace.snapshot.sessions.length === 1 ? 'terminal' : 'terminals'}`,
+        `Updated ${formatWorkspaceTimestamp(workspace.updatedAt)}`,
+      ].join(' • '),
       group: 'Workspace',
-      keywords: ['workspace', 'switch', 'restore', workspace.name],
+      keywords: ['workspace', 'switch', 'restore', workspace.name, workspace.projectPath, workspace.projectName].filter(Boolean) as string[],
       run: () => {
         void handleSwitchWorkspace(workspace.id)
       },
@@ -645,6 +829,14 @@ export default function App() {
         run: openSaveTemplateDialog,
       },
       {
+        id: 'workspace-setup',
+        title: 'Workspace Settings',
+        subtitle: 'Associate a project path and define per-terminal startup behavior',
+        group: 'General',
+        keywords: ['workspace', 'settings', 'project', 'startup', 'script', 'cwd'],
+        run: openWorkspaceSetupDialog,
+      },
+      {
         id: 'workspace-templates',
         title: 'Browse Workspace Templates',
         subtitle: 'Start a new workspace from a built-in or custom layout',
@@ -675,6 +867,7 @@ export default function App() {
     isSidebarOpen,
     openTemplateDialog,
     openSaveTemplateDialog,
+    openWorkspaceSetupDialog,
     openSaveWorkspaceDialog,
     sessions,
     spawnTerminal,
@@ -799,7 +992,9 @@ export default function App() {
                           )}
                         </div>
                         <p className="mt-1 text-xs" style={{ color: '#71717a' }}>
-                          {workspace.snapshot.sessions.length} {workspace.snapshot.sessions.length === 1 ? 'terminal' : 'terminals'} • Updated {formatWorkspaceTimestamp(workspace.updatedAt)}
+                          {workspace.projectName
+                            ? `Project ${workspace.projectName}`
+                            : `${workspace.snapshot.sessions.length} ${workspace.snapshot.sessions.length === 1 ? 'terminal' : 'terminals'}`} • Updated {formatWorkspaceTimestamp(workspace.updatedAt)}
                         </p>
                       </button>
 
@@ -1000,6 +1195,21 @@ export default function App() {
           style={{
             background: 'transparent',
             border: '1px solid #3f3f46',
+            color: currentWorkspace ? '#71717a' : '#52525b',
+            WebkitAppRegion: 'no-drag',
+          } as React.CSSProperties}
+          onClick={openWorkspaceSetupDialog}
+          disabled={!currentWorkspace}
+          title={currentWorkspace ? 'Open workspace settings' : 'Save a workspace first'}
+        >
+          Settings
+        </button>
+
+        <button
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors"
+          style={{
+            background: 'transparent',
+            border: '1px solid #3f3f46',
             color: '#71717a',
             WebkitAppRegion: 'no-drag',
           } as React.CSSProperties}
@@ -1028,6 +1238,20 @@ export default function App() {
         {currentWorkspace && (
           <span className="text-xs" style={{ color: '#71717a', WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
             {currentWorkspace.name}
+          </span>
+        )}
+
+        {currentWorkspace?.projectName && (
+          <span
+            className="rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.16em]"
+            style={{
+              color: theme.accent,
+              background: theme.accent + '14',
+              border: `1px solid ${theme.accent}2a`,
+              WebkitAppRegion: 'no-drag',
+            } as React.CSSProperties}
+          >
+            {currentWorkspace.projectName}
           </span>
         )}
 
@@ -1096,10 +1320,11 @@ export default function App() {
             {gridSessions.map((session) => (
               <div key={session.id} className="rounded-xl">
                 <TerminalCard
-                  key={session.id}
+                  key={`${currentWorkspaceId || 'workspace'}:${workspaceTerminalEpoch}:${session.id}`}
                   sessionId={session.id}
                   theme={themesById[session.themeId || ''] || theme}
                   workspaceTheme={theme}
+                  workspaceProjectPath={currentWorkspace?.projectPath}
                   themes={availableThemes}
                   preferences={preferences}
                   isActive={activeSessionId === session.id}
@@ -1162,6 +1387,7 @@ export default function App() {
               boxShadow: '0 30px 100px rgba(0, 0, 0, 0.5)',
             }}
             onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-5 border-b" style={{ borderColor: '#202027' }}>
               <div>
@@ -1283,6 +1509,270 @@ export default function App() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {workspaceSetupDraft && (
+        <div
+          className="fixed inset-0 flex items-center justify-center px-4 py-8"
+          style={{ background: 'rgba(9, 9, 11, 0.76)', zIndex: 1000 }}
+          onClick={() => setWorkspaceSetupDraft(null)}
+        >
+          <div
+            className="w-full max-w-5xl rounded-[28px] overflow-hidden"
+            style={{
+              background: '#101014',
+              border: '1px solid #27272a',
+              boxShadow: '0 30px 100px rgba(0, 0, 0, 0.5)',
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-5 border-b" style={{ borderColor: '#202027' }}>
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.18em]" style={{ color: '#71717a' }}>
+                  Workspace Settings
+                </p>
+                <h2 className="mt-2 text-xl font-semibold" style={{ color: '#f4f4f5' }}>
+                  Project-aware restore and startup actions
+                </h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: '#a1a1aa' }}>
+                  Associate this workspace with a project path and define how each terminal should relaunch when you come back.
+                </p>
+              </div>
+              <button
+                className="px-3 py-2 rounded-lg text-sm border transition-colors"
+                style={{ borderColor: '#27272a', color: '#a1a1aa' }}
+                onClick={() => setWorkspaceSetupDraft(null)}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="p-6 max-h-[72vh] overflow-y-auto">
+              <div
+                className="rounded-[24px] p-5"
+                style={{
+                  background: '#121218',
+                  border: '1px solid #202027',
+                }}
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: '#f4f4f5' }}>
+                      Project Path
+                    </p>
+                    <p className="mt-1 text-xs leading-5" style={{ color: '#71717a' }}>
+                      When a terminal does not define its own startup directory, Sorbet will fall back to this project path.
+                    </p>
+                  </div>
+                  {activeSession?.cwd && (
+                    <button
+                      className="px-3 py-2 rounded-lg text-sm border transition-colors"
+                      style={{ borderColor: '#27272a', color: '#d4d4d8' }}
+                      onClick={() =>
+                        setWorkspaceSetupDraft((current) =>
+                          current
+                            ? {
+                                ...current,
+                                projectPath: activeSession.cwd || '',
+                              }
+                            : current
+                        )
+                      }
+                    >
+                      Use Active Terminal CWD
+                    </button>
+                  )}
+                </div>
+
+                <input
+                  className="w-full mt-4 rounded-xl px-4 py-3 text-sm outline-none"
+                  style={{
+                    background: '#09090b',
+                    border: `1px solid ${theme.accent}33`,
+                    color: '#f4f4f5',
+                  }}
+                  value={workspaceSetupDraft.projectPath}
+                  onChange={(event) => {
+                    const nextValue = event.currentTarget.value
+                    setWorkspaceSetupDraft((current) =>
+                      current
+                        ? {
+                            ...current,
+                            projectPath: nextValue,
+                          }
+                        : current
+                    )
+                  }}
+                  placeholder="/path/to/project"
+                />
+
+                <p className="mt-3 text-xs" style={{ color: '#71717a' }}>
+                  {workspaceSetupDraft.projectPath.trim()
+                    ? `Project label: ${deriveProjectName(workspaceSetupDraft.projectPath) || workspaceSetupDraft.projectPath}`
+                    : 'No project path set yet.'}
+                </p>
+              </div>
+
+              <div className="mt-5">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: '#f4f4f5' }}>
+                      Terminal Startup Actions
+                    </p>
+                    <p className="mt-1 text-xs leading-5" style={{ color: '#71717a' }}>
+                      Each terminal can reopen in a specific directory and optionally run a boot command like `npm run dev` or `pnpm test`.
+                    </p>
+                  </div>
+                  <span className="text-xs" style={{ color: '#52525b' }}>
+                    {workspaceSetupDraft.sessions.length} {workspaceSetupDraft.sessions.length === 1 ? 'terminal' : 'terminals'}
+                  </span>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {workspaceSetupDraft.sessions.map((sessionDraft) => {
+                    const liveSession = sessions.find((session) => session.id === sessionDraft.id)
+                    return (
+                      <div
+                        key={sessionDraft.id}
+                        className="rounded-[24px] p-4"
+                        style={{
+                          background: '#121218',
+                          border: '1px solid #202027',
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-medium" style={{ color: '#f4f4f5' }}>
+                              {sessionDraft.title}
+                            </p>
+                            <p className="mt-1 text-xs" style={{ color: '#71717a' }}>
+                              {liveSession?.cwd || sessionDraft.startupCwd || workspaceSetupDraft.projectPath || 'Terminal'}
+                            </p>
+                          </div>
+                          {liveSession?.cwd && (
+                            <button
+                              className="px-3 py-2 rounded-lg text-sm border transition-colors"
+                              style={{ borderColor: '#27272a', color: '#d4d4d8' }}
+                              onClick={() =>
+                                setWorkspaceSetupDraft((current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        sessions: current.sessions.map((session) =>
+                                          session.id === sessionDraft.id
+                                            ? {
+                                                ...session,
+                                                startupCwd: liveSession.cwd || '',
+                                              }
+                                            : session
+                                        ),
+                                      }
+                                    : current
+                                )
+                              }
+                            >
+                              Use Live CWD
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-4">
+                          <div>
+                            <label className="block text-xs font-medium mb-2" style={{ color: '#a1a1aa' }}>
+                              Startup directory
+                            </label>
+                            <input
+                              className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+                              style={{
+                                background: '#09090b',
+                                border: `1px solid ${theme.accent}22`,
+                                color: '#f4f4f5',
+                              }}
+                              value={sessionDraft.startupCwd}
+                              onChange={(event) => {
+                                const nextValue = event.currentTarget.value
+                                setWorkspaceSetupDraft((current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        sessions: current.sessions.map((session) =>
+                                          session.id === sessionDraft.id
+                                            ? {
+                                                ...session,
+                                                startupCwd: nextValue,
+                                              }
+                                            : session
+                                        ),
+                                      }
+                                    : current
+                                )
+                              }}
+                              placeholder={workspaceSetupDraft.projectPath || '/path/to/project'}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium mb-2" style={{ color: '#a1a1aa' }}>
+                              Startup command
+                            </label>
+                            <input
+                              className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+                              style={{
+                                background: '#09090b',
+                                border: `1px solid ${theme.accent}22`,
+                                color: '#f4f4f5',
+                              }}
+                              value={sessionDraft.startupCommand}
+                              onChange={(event) => {
+                                const nextValue = event.currentTarget.value
+                                setWorkspaceSetupDraft((current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        sessions: current.sessions.map((session) =>
+                                          session.id === sessionDraft.id
+                                            ? {
+                                                ...session,
+                                                startupCommand: nextValue,
+                                              }
+                                            : session
+                                        ),
+                                      }
+                                    : current
+                                )
+                              }}
+                              placeholder="npm run dev"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 mt-6">
+                <button
+                  className="px-3 py-2 rounded-lg text-sm border transition-colors"
+                  style={{ borderColor: '#27272a', color: '#a1a1aa' }}
+                  onClick={() => setWorkspaceSetupDraft(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-3 py-2 rounded-lg text-sm font-medium"
+                  style={{
+                    background: theme.accent,
+                    color: '#09090b',
+                  }}
+                  onClick={() => void handleWorkspaceSetupSave()}
+                >
+                  Save Workspace Settings
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -12,8 +12,13 @@ contextBridge.exposeInMainWorld('sorbet', {
 
   // PTY operations
   pty: {
-    create: (sessionId: string, cols: number, rows: number) =>
-      ipcRenderer.invoke('pty:create', sessionId, cols, rows),
+    create: (
+      sessionId: string,
+      cols: number,
+      rows: number,
+      options?: { cwd?: string; command?: string }
+    ) =>
+      ipcRenderer.invoke('pty:create', sessionId, cols, rows, options),
 
     write: (sessionId: string, data: string) =>
       ipcRenderer.send('pty:write', sessionId, data),
@@ -55,8 +60,8 @@ contextBridge.exposeInMainWorld('sorbet', {
     saveTheme: (theme: string) => ipcRenderer.invoke('store:saveTheme', theme),
     getWorkspaces: () => ipcRenderer.invoke('store:getWorkspaces'),
     getWorkspaceTemplates: () => ipcRenderer.invoke('store:getWorkspaceTemplates'),
-    createWorkspace: (name: string, snapshot: unknown, makeCurrent = true) =>
-      ipcRenderer.invoke('store:createWorkspace', name, snapshot, makeCurrent),
+    createWorkspace: (name: string, snapshot: unknown, makeCurrent = true, options?: unknown) =>
+      ipcRenderer.invoke('store:createWorkspace', name, snapshot, makeCurrent, options),
     createWorkspaceFromTemplate: (templateId: string, name?: string) =>
       ipcRenderer.invoke('store:createWorkspaceFromTemplate', templateId, name),
     createWorkspaceTemplate: (name: string, snapshot: unknown, options?: unknown) =>

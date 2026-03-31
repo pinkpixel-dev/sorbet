@@ -6,10 +6,26 @@ const electronBinary = require('electron')
 const projectRoot = path.resolve(__dirname, '..')
 const devPort = process.env.SORBET_DEV_PORT || '38173'
 const devServerUrl = `http://localhost:${devPort}`
+const isWindows = process.platform === 'win32'
 
 const env = { ...process.env }
 delete env.ELECTRON_RUN_AS_NODE
 env.SORBET_DEV_PORT = devPort
+
+function terminateChild(child, signal = 'SIGTERM') {
+  if (!child || child.exitCode !== null || child.signalCode !== null) {
+    return
+  }
+
+  try {
+    if (!isWindows && typeof child.pid === 'number') {
+      process.kill(-child.pid, signal)
+      return
+    }
+
+    child.kill(signal)
+  } catch {}
+}
 
 async function main() {
   await waitOn({
@@ -24,6 +40,7 @@ async function main() {
     cwd: projectRoot,
     env,
     stdio: 'inherit',
+    detached: !isWindows,
   })
 
   child.on('exit', (code, signal) => {
@@ -39,6 +56,10 @@ async function main() {
     console.error(error)
     process.exit(1)
   })
+
+  process.on('SIGINT', () => terminateChild(child, 'SIGINT'))
+  process.on('SIGTERM', () => terminateChild(child, 'SIGTERM'))
+  process.on('exit', () => terminateChild(child, 'SIGTERM'))
 }
 
 void main().catch((error) => {

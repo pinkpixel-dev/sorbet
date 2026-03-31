@@ -9,6 +9,8 @@
 - Built-in workspace templates for full-stack work, monitoring, debugging, and documentation flows
 - Template gallery, sidebar shortcuts, and command palette actions for creating a new workspace from a starter layout
 - Save-current-workspace as custom template, with rename and delete actions for user-created templates
+- Project-aware workspace setup with saved project paths and project labels
+- Per-terminal startup actions so restored workspaces can reopen in specific directories and optionally run boot commands
 - Window pinning so terminal cards can be locked against drag and resize changes
 - In-app workspace naming dialog for save-as and rename flows
 - Per-window theme overrides with inherit-from-workspace behavior and card-level color identity
@@ -25,9 +27,22 @@
 
 ### Fixed
 
+- Development shutdown leaving orphaned Vite and watch processes behind after `Ctrl+C` or closing the Electron window, which kept the dev port occupied on the next launch
+- Workspace switching races that let restored terminals mount against a stale workspace record, causing project paths, themes, and startup directories to bleed across workspaces
+- Workspace snapshot updates for non-current workspaces overwriting the global live layout/theme cache used by the active workspace
+- Terminal resize/focus races that could leave xterm.js trying to measure a disposed terminal and repeatedly throwing `Cannot read properties of undefined (reading 'dimensions')`
+- Persisted layout snapshots with invalid `minW` or `minH` values that triggered `react-grid-layout` warnings and unstable card behavior after restore
 - Workspace save and rename interactions that were unreliable when driven by native prompt dialogs
 - Blank-screen regression triggered by typing into the workspace naming dialog
+- Blank-screen regression triggered by typing into workspace setup project-path and startup-action fields
+- Terminal PTYs getting torn down after saving workspace startup settings, which left cards mounted without a live shell prompt
+- Workspace project paths like `home/...` or `~/...` silently falling back to the home directory during restore
+- Workspace startup settings not being written directly into saved workspace snapshots
+- Cross-workspace terminal state leaking when different workspaces reused the same saved session IDs
+- Workspace switches racing old and new PTY sessions, which intermittently produced `Session already exists` and the wrong working directory
+- Restored workspaces reusing persisted session IDs as live runtime IDs, which let PTY/process state bleed between workspaces
 - Renderer state sync issues after workspace creation and rename flows
+- Save-as workspace copies dropping project-aware metadata
 - Black-screen development startup caused by Electron 41 preload/sandbox behavior changes
 - Dev-session failures caused by port collisions between multiple local applications
 - Linux development startup noise and hidden-window behavior that made Electron launch failures harder to diagnose

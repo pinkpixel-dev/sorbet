@@ -12,7 +12,7 @@ electron_1.contextBridge.exposeInMainWorld('sorbet', {
     },
     // PTY operations
     pty: {
-        create: (sessionId, cols, rows) => electron_1.ipcRenderer.invoke('pty:create', sessionId, cols, rows),
+        create: (sessionId, cols, rows, options) => electron_1.ipcRenderer.invoke('pty:create', sessionId, cols, rows, options),
         write: (sessionId, data) => electron_1.ipcRenderer.send('pty:write', sessionId, data),
         resize: (sessionId, cols, rows) => electron_1.ipcRenderer.send('pty:resize', sessionId, cols, rows),
         kill: (sessionId) => electron_1.ipcRenderer.invoke('pty:kill', sessionId),
@@ -44,7 +44,7 @@ electron_1.contextBridge.exposeInMainWorld('sorbet', {
         saveTheme: (theme) => electron_1.ipcRenderer.invoke('store:saveTheme', theme),
         getWorkspaces: () => electron_1.ipcRenderer.invoke('store:getWorkspaces'),
         getWorkspaceTemplates: () => electron_1.ipcRenderer.invoke('store:getWorkspaceTemplates'),
-        createWorkspace: (name, snapshot, makeCurrent = true) => electron_1.ipcRenderer.invoke('store:createWorkspace', name, snapshot, makeCurrent),
+        createWorkspace: (name, snapshot, makeCurrent = true, options) => electron_1.ipcRenderer.invoke('store:createWorkspace', name, snapshot, makeCurrent, options),
         createWorkspaceFromTemplate: (templateId, name) => electron_1.ipcRenderer.invoke('store:createWorkspaceFromTemplate', templateId, name),
         createWorkspaceTemplate: (name, snapshot, options) => electron_1.ipcRenderer.invoke('store:createWorkspaceTemplate', name, snapshot, options),
         updateWorkspaceTemplate: (id, updates) => electron_1.ipcRenderer.invoke('store:updateWorkspaceTemplate', id, updates),

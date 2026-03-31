@@ -15,11 +15,14 @@ Sorbet now includes named saved workspaces, a workspace sidebar, reusable worksp
 - Multi-session terminal workspace with draggable, resizable terminal cards
 - Real PTY-backed shells powered by `node-pty`
 - Named saved workspaces with restore, rename, and delete actions
+- Project-aware workspaces with optional saved project paths
 - Workspace sidebar for switching between saved layouts
 - Built-in and user-saved workspace templates with a gallery and one-click workspace creation
+- Workspace setup for per-terminal startup directories and boot commands
 - Window pinning and layout locking for terminal cards
 - Per-window themes with inheritable workspace defaults and color identity
 - Persistent workspace layout, workspace theme, and per-window theme overrides
+- Layout restore sanitization so invalid saved tile constraints do not destabilize the workspace canvas
 - Command palette for quickly running app actions, switching workspaces, changing themes, and focusing sessions
 - Minimize, maximize, restore, and close controls for each terminal window
 - Editable terminal titles with a hover affordance
@@ -68,9 +71,19 @@ Sorbet now includes named saved workspaces, a workspace sidebar, reusable worksp
 - Save the current canvas as a named workspace
 - Restore the most recently selected saved workspace on launch
 - Browse saved workspaces from the built-in left sidebar
+- Associate a saved workspace with a project path so it feels contextual instead of generic
 - Browse built-in workspace templates for common flows like full-stack work, monitoring, debugging, and writing
 - Save the current canvas as a reusable custom template for later
+- Keep project path and label metadata intact when saving a workspace copy
 - Rename and delete custom templates without affecting the built-in starter set
+- Edit project paths and startup actions from an in-app workspace setup dialog without leaving the canvas
+- Configure each terminal to reopen in a saved working directory
+- Configure optional startup commands such as `npm run dev` or `pnpm test`
+- Reapply workspace settings cleanly without restarting the whole app
+- Switch workspaces atomically so project path, theme, and live PTY state stay attached to the correct workspace during restore
+- Apply workspace settings cleanly across workspace switches even when saved workspaces share terminal IDs
+- Tear down the previous workspace's PTYs before restoring the next one so terminals relaunch cleanly
+- Restore each workspace with fresh live terminal session IDs so saved snapshots do not share runtime process identity
 - Create a fresh named workspace from a template without mutating your current canvas
 - Rename and delete saved workspaces
 - Preserve terminal metadata such as titles, minimized state, and pinned state inside saved workspaces
@@ -120,11 +133,13 @@ Sorbet now includes named saved workspaces, a workspace sidebar, reusable worksp
 
 At a high level, the application is split into three parts:
 
-1. The Electron main process creates the native window, spawns PTY-backed shell sessions, manages menus, loads and watches user configuration files, persists workspace layouts, saved workspaces, and custom templates, and materializes new workspaces from the template catalog.
+1. The Electron main process creates the native window, spawns PTY-backed shell sessions, manages menus, loads and watches user configuration files, persists workspace layouts, saved workspaces, and custom templates, and restores project-aware workspace startup behavior from the template and workspace catalog.
 2. The preload script exposes a small, typed API on `window.sorbet` so the renderer can safely request PTY, clipboard, workspace-template, and storage operations.
-3. The React renderer manages workspace restoration, saved-workspace switching, template browsing, template saving, terminal lifecycle, workspace and per-window theme selection, user preferences, and card interactions.
+3. The React renderer manages workspace restoration, saved-workspace switching, project setup, template browsing, template saving, terminal lifecycle, workspace and per-window theme selection, user preferences, and card interactions.
 
 When a new card is created, the renderer computes a layout position, adds a session to the Zustand store, and mounts a `TerminalCard`. That card initializes xterm.js, asks the main process to create a PTY, wires terminal input/output over IPC, and reacts to live preference changes such as font or clipboard behavior.
+
+The terminal lifecycle is also guarded so resize and focus work only runs while the xterm instance is still mounted in a live DOM container. Saved layout data is clamped before reuse so older snapshots cannot feed impossible size constraints back into the grid.
 
 ## Requirements
 
@@ -204,7 +219,7 @@ This launches:
 
 Sorbet now prints the selected port at startup, for example `Using Sorbet dev port 38173`, and reuses that same value for both Vite and Electron during the session.
 
-When the Electron app window closes, the full dev session now exits automatically.
+When the Electron app window closes, the full dev session now exits automatically. `Ctrl+C` in the terminal also tears down the full process tree so Vite, the TypeScript watcher, and Electron do not keep the dev port occupied.
 
 You can also run the pieces separately if needed:
 

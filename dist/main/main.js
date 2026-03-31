@@ -110,6 +110,33 @@ function getFallbackThemeId() {
         ? String(store.get('theme'))
         : defaultPreferences.defaultThemeId;
 }
+function deriveProjectName(projectPath) {
+    const trimmedPath = normalizePathInput(projectPath);
+    if (!trimmedPath)
+        return undefined;
+    const normalizedPath = trimmedPath.replace(/[\\/]+$/, '');
+    if (!normalizedPath)
+        return undefined;
+    return path.basename(normalizedPath) || normalizedPath;
+}
+function normalizePathInput(input) {
+    if (!input)
+        return undefined;
+    const trimmedPath = input.trim();
+    if (!trimmedPath)
+        return undefined;
+    const homeDirectory = process.env.HOME || process.cwd();
+    if (trimmedPath === '~') {
+        return homeDirectory;
+    }
+    if (trimmedPath.startsWith('~/')) {
+        return path.join(homeDirectory, trimmedPath.slice(2));
+    }
+    if (process.platform !== 'win32' && !path.isAbsolute(trimmedPath) && trimmedPath.startsWith('home/')) {
+        return `/${trimmedPath}`;
+    }
+    return trimmedPath;
+}
 function createTemplateLayoutItem(id, x, y, w, h, options = {}) {
     return {
         i: id,
@@ -146,6 +173,10 @@ function createWorkspaceTemplate(id, name, description, category, accent, sugges
         source: options.source ?? 'built-in',
         createdAt: options.createdAt ?? now,
         updatedAt: options.updatedAt ?? now,
+        projectPath: typeof options.projectPath === 'string' && options.projectPath.trim() ? options.projectPath.trim() : undefined,
+        projectName: typeof options.projectName === 'string' && options.projectName.trim()
+            ? options.projectName.trim()
+            : deriveProjectName(options.projectPath),
         snapshot: normalizeWorkspaceSnapshot(snapshot, snapshot.themeId || defaultPreferences.defaultThemeId),
     };
 }
@@ -220,14 +251,22 @@ function normalizeLayoutItem(raw) {
         typeof item.h !== 'number') {
         return null;
     }
+    const minW = typeof item.minW === 'number' && Number.isFinite(item.minW)
+        ? Math.max(1, Math.floor(item.minW))
+        : undefined;
+    const minH = typeof item.minH === 'number' && Number.isFinite(item.minH)
+        ? Math.max(1, Math.floor(item.minH))
+        : undefined;
+    const width = Math.max(Math.floor(item.w), minW ?? 1);
+    const height = Math.max(Math.floor(item.h), minH ?? 1);
     return {
         i: item.i,
-        x: item.x,
-        y: item.y,
-        w: item.w,
-        h: item.h,
-        minW: typeof item.minW === 'number' ? item.minW : undefined,
-        minH: typeof item.minH === 'number' ? item.minH : undefined,
+        x: Math.max(0, Math.floor(item.x)),
+        y: Math.max(0, Math.floor(item.y)),
+        w: width,
+        h: height,
+        minW,
+        minH,
     };
 }
 function normalizeSession(raw) {
@@ -247,6 +286,10 @@ function normalizeSession(raw) {
         themeId: typeof session.themeId === 'string' && session.themeId.trim() ? session.themeId : undefined,
         shellName: typeof session.shellName === 'string' && session.shellName.trim() ? session.shellName : undefined,
         cwd: typeof session.cwd === 'string' && session.cwd.trim() ? session.cwd : undefined,
+        startupCwd: normalizePathInput(typeof session.startupCwd === 'string' ? session.startupCwd : undefined),
+        startupCommand: typeof session.startupCommand === 'string' && session.startupCommand.trim()
+            ? session.startupCommand
+            : undefined,
     };
 }
 function readProcessCwd(pid) {
@@ -346,6 +389,10 @@ function normalizeWorkspaceRecord(raw, fallbackThemeId) {
         createdAt: typeof item.createdAt === 'number' ? item.createdAt : now,
         updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : now,
         lastOpenedAt: typeof item.lastOpenedAt === 'number' ? item.lastOpenedAt : now,
+        projectPath: normalizePathInput(typeof item.projectPath === 'string' ? item.projectPath : undefined),
+        projectName: typeof item.projectName === 'string' && item.projectName.trim()
+            ? item.projectName.trim()
+            : deriveProjectName(typeof item.projectPath === 'string' ? item.projectPath : undefined),
         snapshot: normalizeWorkspaceSnapshot(item.snapshot, fallbackThemeId),
     };
 }
@@ -376,6 +423,10 @@ function normalizeWorkspaceTemplateRecord(raw, fallbackThemeId) {
         source: item.source === 'custom' ? 'custom' : 'built-in',
         createdAt: typeof item.createdAt === 'number' ? item.createdAt : now,
         updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : now,
+        projectPath: normalizePathInput(typeof item.projectPath === 'string' ? item.projectPath : undefined),
+        projectName: typeof item.projectName === 'string' && item.projectName.trim()
+            ? item.projectName.trim()
+            : deriveProjectName(typeof item.projectPath === 'string' ? item.projectPath : undefined),
         snapshot: normalizeWorkspaceSnapshot(item.snapshot, fallbackThemeId),
     };
 }
@@ -486,15 +537,20 @@ function materializeWorkspaceSnapshot(snapshot, fallbackThemeId) {
         themeId: normalizedSnapshot.themeId,
     }, fallbackThemeId);
 }
-function createWorkspaceRecordFromSnapshot(name, snapshot, workspaceCount) {
+function createWorkspaceRecordFromSnapshot(name, snapshot, workspaceCount, options = {}) {
     const now = Date.now();
     const fallbackThemeId = getFallbackThemeId();
+    const projectPath = normalizePathInput(options.projectPath);
     return {
         id: createId('ws'),
         name: typeof name === 'string' && name.trim() ? name.trim() : `Workspace ${workspaceCount + 1}`,
         createdAt: now,
         updatedAt: now,
         lastOpenedAt: now,
+        projectPath,
+        projectName: typeof options.projectName === 'string' && options.projectName.trim()
+            ? options.projectName.trim()
+            : deriveProjectName(projectPath),
         snapshot: normalizeWorkspaceSnapshot(snapshot, fallbackThemeId),
     };
 }
@@ -503,6 +559,7 @@ function createWorkspaceTemplateRecordFromSnapshot(name, snapshot, templateCount
     const fallbackThemeId = getFallbackThemeId();
     const normalizedSnapshot = normalizeWorkspaceSnapshot(snapshot, fallbackThemeId);
     const trimmedName = typeof name === 'string' && name.trim() ? name.trim() : `Template ${templateCount + 1}`;
+    const projectPath = normalizePathInput(options.projectPath);
     return {
         id: createId('tpl'),
         name: trimmedName,
@@ -521,13 +578,20 @@ function createWorkspaceTemplateRecordFromSnapshot(name, snapshot, templateCount
         source: 'custom',
         createdAt: now,
         updatedAt: now,
+        projectPath,
+        projectName: typeof options.projectName === 'string' && options.projectName.trim()
+            ? options.projectName.trim()
+            : deriveProjectName(projectPath),
         snapshot: normalizedSnapshot,
     };
 }
 function createWorkspaceFromTemplateRecord(template, name, workspaceCount) {
     const fallbackThemeId = getFallbackThemeId();
     const materializedSnapshot = materializeWorkspaceSnapshot(template.snapshot, fallbackThemeId);
-    return createWorkspaceRecordFromSnapshot(name || template.suggestedWorkspaceName, materializedSnapshot, workspaceCount);
+    return createWorkspaceRecordFromSnapshot(name || template.suggestedWorkspaceName, materializedSnapshot, workspaceCount, {
+        projectPath: template.projectPath,
+        projectName: template.projectName,
+    });
 }
 function writeWorkspaceState(state) {
     store.set('workspaces', state);
@@ -554,6 +618,31 @@ function resolveShell() {
         return { command, args: ['-i'] };
     }
     return { command, args: [] };
+}
+function resolveLaunchCwd(preferredCwd) {
+    const fallbackCwd = process.env.HOME || process.cwd();
+    const candidate = normalizePathInput(preferredCwd);
+    if (!candidate)
+        return fallbackCwd;
+    try {
+        return fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()
+            ? candidate
+            : fallbackCwd;
+    }
+    catch {
+        return fallbackCwd;
+    }
+}
+function queueStartupCommand(ptyProcess, command) {
+    const nextCommand = typeof command === 'string' ? command.trim() : '';
+    if (!nextCommand)
+        return;
+    setTimeout(() => {
+        try {
+            ptyProcess.write(nextCommand.endsWith('\r') || nextCommand.endsWith('\n') ? nextCommand : `${nextCommand}\r`);
+        }
+        catch { }
+    }, 160);
 }
 // ─── Window ───────────────────────────────────────────────────────────────────
 let mainWindow = null;
@@ -1032,14 +1121,14 @@ function createWindow() {
 }
 // ─── IPC Handlers ─────────────────────────────────────────────────────────────
 // Create a new PTY session
-electron_1.ipcMain.handle('pty:create', (event, sessionId, cols, rows) => {
+electron_1.ipcMain.handle('pty:create', (_event, sessionId, cols, rows, options) => {
     if (sessions.has(sessionId)) {
         return { success: false, error: 'Session already exists' };
     }
     try {
         const shell = resolveShell();
         const shellName = path.basename(shell.command);
-        const cwd = process.env.HOME || process.cwd();
+        const cwd = resolveLaunchCwd(options?.cwd);
         const ptyProcess = pty.spawn(shell.command, shell.args, {
             name: 'xterm-256color',
             cols: cols || 80,
@@ -1075,6 +1164,7 @@ electron_1.ipcMain.handle('pty:create', (event, sessionId, cols, rows) => {
         };
         sessions.set(sessionId, ptySession);
         startCwdPolling(ptySession);
+        queueStartupCommand(ptyProcess, options?.command);
         return { success: true, pid: ptyProcess.pid, shellName, cwd };
     }
     catch (err) {
@@ -1143,9 +1233,13 @@ electron_1.ipcMain.handle('store:getWorkspaces', () => {
 electron_1.ipcMain.handle('store:getWorkspaceTemplates', () => {
     return readWorkspaceTemplates();
 });
-electron_1.ipcMain.handle('store:createWorkspace', (_event, name, snapshot, makeCurrent = true) => {
+electron_1.ipcMain.handle('store:createWorkspace', (_event, name, snapshot, makeCurrent = true, options) => {
     const state = readWorkspaceState();
-    const workspace = createWorkspaceRecordFromSnapshot(name, snapshot, state.workspaces.length);
+    const payload = options && typeof options === 'object' ? options : {};
+    const workspace = createWorkspaceRecordFromSnapshot(name, snapshot, state.workspaces.length, {
+        projectPath: typeof payload.projectPath === 'string' ? payload.projectPath : undefined,
+        projectName: typeof payload.projectName === 'string' ? payload.projectName : undefined,
+    });
     const nextState = {
         currentWorkspaceId: makeCurrent ? workspace.id : state.currentWorkspaceId,
         workspaces: [...state.workspaces, workspace],
@@ -1178,6 +1272,8 @@ electron_1.ipcMain.handle('store:createWorkspaceTemplate', (_event, name, snapsh
         suggestedWorkspaceName: typeof payload.suggestedWorkspaceName === 'string'
             ? payload.suggestedWorkspaceName
             : undefined,
+        projectPath: typeof payload.projectPath === 'string' ? payload.projectPath : undefined,
+        projectName: typeof payload.projectName === 'string' ? payload.projectName : undefined,
     });
     writeCustomWorkspaceTemplates([...templates, template]);
     return template;
@@ -1205,6 +1301,12 @@ electron_1.ipcMain.handle('store:updateWorkspaceTemplate', (_event, id, updates)
             suggestedWorkspaceName: typeof payload.suggestedWorkspaceName === 'string' && payload.suggestedWorkspaceName.trim()
                 ? payload.suggestedWorkspaceName.trim()
                 : template.suggestedWorkspaceName,
+            projectPath: typeof payload.projectPath === 'string'
+                ? normalizePathInput(payload.projectPath)
+                : template.projectPath,
+            projectName: typeof payload.projectName === 'string' && payload.projectName.trim()
+                ? payload.projectName.trim()
+                : deriveProjectName(typeof payload.projectPath === 'string' ? payload.projectPath : template.projectPath),
             updatedAt: Date.now(),
         };
         return updatedTemplate;
@@ -1229,6 +1331,12 @@ electron_1.ipcMain.handle('store:updateWorkspace', (_event, id, updates) => {
             name: typeof payload.name === 'string' && payload.name.trim()
                 ? payload.name.trim()
                 : workspace.name,
+            projectPath: typeof payload.projectPath === 'string'
+                ? normalizePathInput(payload.projectPath)
+                : workspace.projectPath,
+            projectName: typeof payload.projectName === 'string' && payload.projectName.trim()
+                ? payload.projectName.trim()
+                : deriveProjectName(typeof payload.projectPath === 'string' ? payload.projectPath : workspace.projectPath),
             updatedAt: Date.now(),
         };
         return updatedWorkspace;
@@ -1253,8 +1361,10 @@ electron_1.ipcMain.handle('store:updateWorkspaceSnapshot', (_event, id, snapshot
         ...state,
         workspaces,
     });
-    store.set('layout', normalizedSnapshot.layout);
-    store.set('theme', normalizedSnapshot.themeId);
+    if (state.currentWorkspaceId === id) {
+        store.set('layout', normalizedSnapshot.layout);
+        store.set('theme', normalizedSnapshot.themeId);
+    }
     return { success: true };
 });
 electron_1.ipcMain.handle('store:deleteWorkspace', (_event, id) => {

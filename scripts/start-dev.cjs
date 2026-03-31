@@ -6,6 +6,21 @@ const projectRoot = path.resolve(__dirname, '..')
 const isWindows = process.platform === 'win32'
 const npmCommand = isWindows ? 'npm.cmd' : 'npm'
 
+function terminateChild(child, signal = 'SIGTERM') {
+  if (!child || child.exitCode !== null || child.signalCode !== null) {
+    return
+  }
+
+  try {
+    if (!isWindows && typeof child.pid === 'number') {
+      process.kill(-child.pid, signal)
+      return
+    }
+
+    child.kill(signal)
+  } catch {}
+}
+
 function findAvailablePort(preferredPort) {
   return new Promise((resolve, reject) => {
     const server = net.createServer()
@@ -41,6 +56,7 @@ function spawnChild(label, script, env) {
     cwd: projectRoot,
     env,
     stdio: 'inherit',
+    detached: !isWindows,
   })
 
   child.__sorbetLabel = label
@@ -75,16 +91,13 @@ async function main() {
     shuttingDown = true
 
     for (const child of children) {
-      if (!child.killed) {
-        try {
-          child.kill(signal)
-        } catch {}
-      }
+      terminateChild(child, signal)
     }
   }
 
   process.on('SIGINT', () => shutdown('SIGINT'))
   process.on('SIGTERM', () => shutdown('SIGTERM'))
+  process.on('exit', () => shutdown('SIGTERM'))
 
   for (const child of children) {
     child.on('exit', (code, signal) => {

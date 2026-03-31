@@ -15,8 +15,11 @@ Ordered from the strongest foundational work to the heavier expansion features:
 - [x] Session metadata and status
 - [x] Commands and command palette
 - [x] Workspace templates
-- [ ] Project-aware workspaces
-- [ ] Workspace actions and startup scripts
+- [x] Project-aware workspaces
+- [x] Workspace actions and startup scripts
+- [x] Terminal lifecycle hardening and layout-snapshot sanitization
+- [x] Atomic workspace switching and workspace-scoped persistence guards
+- [x] Reliable dev-runner shutdown for Electron, Vite, and watch processes
 - [ ] Browser windows in the workspace
 - [ ] Filesystem windows
 - [ ] Text editor windows
@@ -201,6 +204,8 @@ Implemented scope:
 
 ### 8. Project-Aware Workspaces
 
+Status: Implemented.
+
 Sorbet could detect or associate a workspace with a folder or repository.
 
 Potential directions:
@@ -216,7 +221,15 @@ Why it matters:
 - makes saved workspaces feel contextual rather than generic
 - reinforces Sorbet as a project command center instead of a one-off layout tool
 
+Implemented scope:
+
+- associate a workspace with an optional saved project path
+- show project identity in the current workspace chrome and saved-workspace list
+- let terminals fall back to the workspace project path when no terminal-specific startup directory is defined
+
 ### 9. Workspace Actions and Startup Scripts
+
+Status: Implemented.
 
 Let saved workspaces optionally define startup behavior.
 
@@ -233,6 +246,17 @@ Why it matters:
 - makes saved workspaces operational, not just visual
 - is especially compelling for repeatable project setups and agent-driven flows
 - compounds the value of persistence, templates, and project-aware behavior
+
+Implemented scope:
+
+- per-terminal startup working directory
+- per-terminal startup command executed after the shell launches
+- centralized workspace setup UI for editing project path plus startup actions together
+- stable editing in the workspace setup dialog so typing does not crash the renderer
+- saving workspace settings reapplies the current workspace inside the app so new launch behavior takes effect immediately
+- workspace switches remount terminal cards so project paths and startup commands do not leak between saved workspaces
+- workspace switches tear down the previous PTYs before restoring the next snapshot, avoiding duplicate-session races
+- restored workspaces now get fresh runtime session ids so saved snapshots cannot share PTY identity
 
 ## Mixed Window Types
 
@@ -389,4 +413,4 @@ These decisions will shape implementation details:
 
 ## Summary
 
-The strongest next step for `Sorbet` is to deepen the workspace concept before broadening it. Saved workspaces, a sidebar, pinning, per-window identity, metadata, a command palette, and templates already make the existing terminal canvas substantially more capable. From here, project-aware behavior and startup actions can turn Sorbet into an even more repeatable workflow tool. Once that foundation is solid, browser, filesystem, and editor windows can expand it into a flexible control center for CLI-agent workflows without losing its original character.
+The strongest next step for `Sorbet` is to deepen the workspace concept before broadening it. Saved workspaces, a sidebar, pinning, per-window identity, metadata, a command palette, templates, project-aware behavior, and startup actions already make the existing terminal canvas substantially more capable. From here, browser, filesystem, and editor windows are the clearest next expansion path for turning Sorbet into a flexible control center for CLI-agent workflows without losing its original character.
