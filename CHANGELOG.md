@@ -6,6 +6,7 @@
 
 - Added direct `v1.1.0` package download links for Linux and Windows to the README and release notes, and refreshed the supporting docs to match
 - Added a GitHub Actions Linux packaging workflow on `ubuntu-22.04` so public `AppImage`, `deb`, and `rpm` artifacts are built from a more compatible glibc baseline than rolling-release local builds
+- Updated the Linux packaging workflow to install ImageMagick so the release build can regenerate icon assets on GitHub-hosted Ubuntu runners
 
 ### Fixed
 

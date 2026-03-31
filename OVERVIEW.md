@@ -122,7 +122,7 @@ This directory contains the UI and renderer-side app state.
 - `scripts/build-rpm.sh`
   - creates the Linux `.rpm` package from the unpacked Electron build
 - `.github/workflows/linux-packages.yml`
-  - builds Linux `AppImage`, `deb`, and `rpm` artifacts on `ubuntu-22.04` so native modules such as `node-pty` target a more portable glibc baseline
+  - builds Linux `AppImage`, `deb`, and `rpm` artifacts on `ubuntu-22.04`, installing ImageMagick and RPM tooling first so the release scripts can regenerate icons and target a more portable glibc baseline for native modules such as `node-pty`
 - `README.md`
   - user-facing project overview, setup instructions, and direct current-release package download links
 - `CHANGELOG.md`
@@ -471,4 +471,5 @@ npm run dist:win
 - Closing the Electron window ends the full `npm run dev` session.
 - Linux release packaging emits `AppImage`, `deb`, and `rpm` artifacts into `release/`.
 - Public Linux release artifacts should be built on `ubuntu-22.04` or through `.github/workflows/linux-packages.yml` because `AppImage` still relies on the host glibc for native modules like `node-pty`.
+- The Linux GitHub Actions release workflow also provisions ImageMagick because `npm run icons` is part of the package build path.
 - Windows installers are built as NSIS `.exe` packages through GitHub Actions.

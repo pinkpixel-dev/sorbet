@@ -57,6 +57,7 @@ When evaluating roadmap items, prioritize work that supports these goals:
 - Make advanced behavior optional through preferences rather than mandatory UI complexity.
 - Extend the current Electron + preload + renderer architecture cleanly and safely.
 - Prefer reproducible release workflows, especially for Linux native modules, so packaged builds stay compatible across mainstream distributions.
+- Keep CI release workflows self-contained so required packaging tools such as icon generators are installed explicitly instead of depending on runner defaults.
 
 ## Near-Term Priorities
 
